@@ -1,0 +1,4348 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>地震灾害模拟器 · 房屋震害 + 山体滑坡</title>
+<style>
+  :root {
+    --bg: #101820;
+    --panel: #1a2530;
+    --panel2: #22303d;
+    --ink: #e8e4dc;
+    --muted: #93a1ad;
+    --line: #2c3a47;
+    --accent: #e8a13c;
+    --rc: #4fa3d9; --brick: #d9703f; --wood: #c9a05a;
+    --fs: 1.15;   /* 全局字号缩放系数，右上角 A- / A / A+ 控制 */
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--ink); overflow: hidden; height: 100vh; width: 100vw; }
+  #scene { position: fixed; inset: 0; z-index: 0; }
+  .hud { position: fixed; z-index: 10; pointer-events: none; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: flex-start; padding: 14px 20px; }
+  .title-box { pointer-events: auto; }
+  .title-box .tag { display: inline-block; font-size: calc(15px * var(--fs)); letter-spacing: 2px; color: var(--accent); border: 1px solid var(--accent); padding: 4px 12px; border-radius: 12px; margin-bottom: 8px; }
+  .title-box h1 { font-size: calc(32px * var(--fs)); font-weight: 700; letter-spacing: 1px; }
+  .title-box p { font-size: calc(18px * var(--fs)); color: var(--muted); margin-top: 5px; }
+  .scene-switch { position: fixed; z-index: 15; pointer-events: auto; top: 16px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; background: rgba(26,37,48,0.9); border: 1px solid var(--line); border-radius: 12px; padding: 4px; }
+  .scene-btn { padding: 10px 24px; border-radius: 9px; border: none; background: transparent; color: var(--muted); cursor: pointer; font-size: calc(18px * var(--fs)); font-weight: 600; transition: all .15s; }
+  .scene-btn.active { background: var(--accent); color: #1a1400; }
+  .control-panel { position: fixed; z-index: 10; pointer-events: auto; bottom: 18px; left: 50%; transform: translateX(-50%); width: min(790px, calc(100vw - 32px)); background: rgba(26,37,48,0.94); border: 1px solid var(--line); border-radius: 16px; padding: 14px 18px; backdrop-filter: blur(8px); }
+  .row-label { font-size: calc(16px * var(--fs)); color: var(--muted); margin-bottom: 8px; letter-spacing: 1px; }
+  .material-row { display: flex; gap: 10px; margin-bottom: 14px; }
+  .mat-btn { flex: 1; padding: 12px 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--panel2); color: var(--ink); cursor: pointer; text-align: center; transition: all .15s; }
+  .mat-btn .m-name { font-size: calc(20px * var(--fs)); font-weight: 600; }
+  .mat-btn .m-sub { font-size: calc(15px * var(--fs)); color: var(--muted); margin-top: 3px; }
+  .mat-btn.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent) inset; }
+  .mag-row { display: flex; gap: 8px; margin-bottom: 14px; }
+  .mag-btn { flex: 1; padding: 11px 6px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel2); color: var(--ink); cursor: pointer; font-size: calc(19px * var(--fs)); font-weight: 600; transition: all .15s; }
+  .mag-btn:hover { border-color: var(--accent); }
+  .mag-btn.small { color: #5cb85c; } .mag-btn.mid { color: #e8a13c; } .mag-btn.big { color: #e25b5b; }
+  .action-row { display: flex; gap: 8px; }
+  .action-btn { flex: 1; padding: 15px; border-radius: 10px; border: none; cursor: pointer; font-size: calc(19px * var(--fs)); font-weight: 700; letter-spacing: 1px; transition: all .15s; }
+  .action-btn.go { background: var(--accent); color: #1a1400; } .action-btn.go:hover { background: #f0ad4d; }
+  .action-btn.reset { background: var(--panel2); color: var(--ink); border: 1px solid var(--line); } .action-btn.reset:hover { border-color: var(--accent); }
+  .legend { position: fixed; z-index: 10; pointer-events: auto; top: 80px; right: 20px; display: grid; grid-template-columns: auto auto; gap: 10px 22px; font-size: calc(17px * var(--fs)); color: var(--muted); }
+  .legend span { display: flex; align-items: center; gap: 8px; } .legend i { width: 16px; height: 16px; border-radius: 2px; display: inline-block; }
+  .status-bar { position: fixed; z-index: 10; pointer-events: none; top: 76px; left: 50%; transform: translateX(-50%); background: rgba(26,37,48,0.85); border: 1px solid var(--line); border-radius: 22px; padding: 10px 28px; font-size: calc(18px * var(--fs)); color: var(--muted); }
+  .status-bar b { color: var(--accent); }
+  .hint { position: fixed; z-index: 10; pointer-events: none; bottom: 178px; left: 50%; transform: translateX(-50%); font-size: calc(16px * var(--fs)); color: var(--muted); }
+  .source-tag { position: fixed; z-index: 10; pointer-events: auto; bottom: 178px; left: 20px; font-size: calc(16px * var(--fs)); color: var(--muted); background: rgba(26,37,48,0.85); border: 1px solid var(--line); border-radius: 8px; padding: 10px 15px; max-width: 360px; line-height: 1.6; }
+  .source-tag b { color: var(--accent); }
+  .bubble { position: fixed; z-index: 20; pointer-events: none; max-width: 500px; background: rgba(26,37,48,0.95); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 12px; padding: 16px 20px; font-size: calc(18px * var(--fs)); color: var(--ink); line-height: 1.65; transform: translate(-50%, -100%); transition: opacity .3s; opacity: 0; }
+  .bubble .b-title { font-weight: 700; font-size: calc(22px * var(--fs)); margin-bottom: 5px; display: block; }
+  .bubble .b-body { color: #c5cfd9; font-size: calc(17px * var(--fs)); }
+  .bubble .b-injury { display: none; margin-top: 10px; padding: 5px 14px; border: 1px solid var(--line); border-radius: 15px;
+    font-size: calc(15px * var(--fs)); font-weight: 700; }
+  .bubble .b-cause { color: var(--accent); margin-top: 9px; display: block; font-size: calc(16px * var(--fs)); }
+  .fs-ctrl { pointer-events: auto; display: flex; gap: 4px; align-items: center; background: rgba(26,37,48,0.9); border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
+  .fs-ctrl button { width: 36px; height: 30px; border-radius: 7px; border: none; background: transparent; color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all .15s; }
+  .fs-ctrl button:hover { color: var(--ink); }
+  .fs-ctrl button.on { background: var(--accent); color: #1a1400; }
+  .bubble::after { content: ''; position: absolute; left: 50%; top: 100%; margin-left: -6px; border: 6px solid transparent; border-top-color: rgba(26,37,48,0.95); }
+
+  /* ==================== 破坏过程时间轴 ==================== */
+  .timeline { position: fixed; z-index: 12; left: 20px; bottom: 240px; width: 420px; max-height: 55vh; display: none; flex-direction: column;
+    background: rgba(20,29,38,0.93); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 12px; padding: 14px 18px 16px;
+    backdrop-filter: blur(6px); pointer-events: none; }
+  .timeline.on { display: flex; }
+  .tl-head { font-size: calc(17px * var(--fs)); color: var(--accent); letter-spacing: 1px; font-weight: 700; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: baseline; }
+  .tl-head span { font-size: calc(14px * var(--fs)); color: var(--muted); font-weight: 400; letter-spacing: 0; }
+  .tl-src { font-size: calc(14.5px * var(--fs)); color: var(--muted); margin: -5px 0 10px; line-height: 1.5; }
+  .tl-src b { color: #b9c4ce; font-weight: 600; }
+  body.floor-on .legend { display: none; }
+  .tl-list { display: flex; flex-direction: column; gap: 8px; overflow: hidden; padding-bottom: 2px; }
+  .tl-item { display: flex; gap: 10px; font-size: calc(16.5px * var(--fs)); line-height: 1.55; color: #dbe3ea; animation: tlIn .34s ease both; }
+  .tl-item .tl-t { flex: none; width: 54px; color: var(--accent); font-weight: 700; font-size: calc(15px * var(--fs)); padding-top: 2px; font-variant-numeric: tabular-nums; }
+  .tl-item .tl-x { flex: 1; }
+  .tl-list .tl-item:last-child { background: rgba(232,161,60,0.10); border-radius: 6px; box-shadow: inset 2px 0 0 var(--accent); padding: 2px 6px 2px 8px; }
+  .tl-item.hot .tl-x { color: #ffb26b; }
+  .tl-item.bad .tl-x { color: #ff8a72; font-weight: 600; }
+  @keyframes tlIn { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+
+  /* ==================== 滑坡规模分级 ==================== */
+  .hill-info { position: fixed; z-index: 12; right: 20px; bottom: 240px; width: 300px; display: none; flex-direction: column;
+    background: rgba(20,29,38,0.93); border: 1px solid var(--line); border-right: 4px solid var(--accent); border-radius: 12px; padding: 14px 18px 16px;
+    backdrop-filter: blur(6px); pointer-events: none; }
+  .hill-info.on { display: flex; }
+  .hi-head { font-size: calc(17px * var(--fs)); color: var(--accent); letter-spacing: 1px; font-weight: 700; margin-bottom: 10px; }
+  .hi-row { display: flex; align-items: center; gap: 10px; font-size: calc(15.5px * var(--fs)); color: #b9c4ce; padding: 6px 8px; border-radius: 7px; line-height: 1.4; }
+  .hi-row i { width: 15px; height: 15px; border-radius: 3px; flex: none; }
+  .hi-row b { font-weight: 600; }
+  .hi-row .hi-v { margin-left: auto; color: #7f8d99; font-size: calc(14px * var(--fs)); }
+  .hi-row.sel { background: rgba(232,161,60,0.14); color: var(--ink); }
+  .hi-row.sel .hi-v { color: var(--accent); }
+  .hi-foot { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line); font-size: calc(15px * var(--fs)); color: #dbe3ea; line-height: 1.6; }
+  .hi-foot b { color: var(--accent); }
+
+  /* ==================== 楼层破坏分布 ==================== */
+  .floor-panel { position: fixed; z-index: 12; right: 20px; bottom: 240px; width: 360px; display: none; flex-direction: column;
+    background: rgba(20,29,38,0.93); border: 1px solid var(--line); border-right: 4px solid var(--accent); border-radius: 12px; padding: 14px 18px 16px;
+    backdrop-filter: blur(6px); pointer-events: none; }
+  .floor-panel.on { display: flex; }
+  .fp-head { font-size: calc(17px * var(--fs)); color: var(--accent); letter-spacing: 1px; font-weight: 700; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: baseline; }
+  .fp-head span { font-size: calc(14px * var(--fs)); color: var(--muted); font-weight: 400; letter-spacing: 0; }
+  .fp-cols { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; height: 170px; }
+  .fp-col { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 2px; }
+  .fp-col .fp-cap { text-align: center; font-size: calc(14.5px * var(--fs)); color: var(--muted); margin-top: 8px; line-height: 1.3; }
+  .fp-col.sel .fp-cap { color: var(--accent); font-weight: 700; }
+  .fp-cell { border-radius: 2px; display: flex; align-items: center; justify-content: space-between; padding: 0 6px;
+    font-size: calc(13px * var(--fs)); color: #0d1116; font-weight: 700; overflow: hidden; white-space: nowrap; }
+  .fp-cell.d0 { background: #4c7a55; color: #dff0e4; }
+  .fp-cell.d1 { background: #7f8f3c; color: #f2f5df; }
+  .fp-cell.d2 { background: #c9a227; }
+  .fp-cell.d3 { background: #cf6a2e; }
+  .fp-cell.d4 { background: #b0322a; color: #ffe8e2; }
+  .fp-note { margin-top: 12px; font-size: calc(14.5px * var(--fs)); line-height: 1.6; color: #c9d3dc; border-top: 1px dashed rgba(255,255,255,0.10); padding-top: 10px; }
+  .fp-note b { color: var(--accent); }
+  .fp-note .hi { color: #ff9b7a; }
+
+  /* ==================== 遥感数字影像分析模块 ==================== */
+  .rs-btn { border: 1px solid var(--accent) !important; color: var(--accent) !important; }
+  .rs-btn:hover { background: rgba(232,161,60,0.12) !important; }
+  .rs-overlay { position: fixed; inset: 0; z-index: 60; background: #0a1016; display: none; flex-direction: column; }
+  .rs-overlay.on { display: flex; }
+  .rs-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 12px 22px; border-bottom: 1px solid var(--line); flex: none; }
+  .rs-head .tag { display: inline-block; font-size: 13px; letter-spacing: 2px; color: var(--accent); border: 1px solid var(--accent); padding: 3px 11px; border-radius: 12px; }
+  .rs-head h2 { font-size: 24px; margin-top: 6px; letter-spacing: 0.5px; }
+  .rs-head p { font-size: 14.5px; color: var(--muted); margin-top: 4px; }
+  .rs-actions { display: flex; align-items: center; gap: 14px; flex: none; }
+  .rs-quick { display: flex; align-items: center; gap: 9px; font-size: 14.5px; color: var(--muted); background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 7px 14px; }
+  .rs-quick input { width: 140px; accent-color: var(--accent); }
+  .rs-quick b { color: var(--accent); font-size: 17px; min-width: 20px; text-align: center; }
+  .rs-close { background: var(--panel2); border: 1px solid var(--line); color: var(--ink); border-radius: 9px; padding: 10px 20px; font-size: 15px; cursor: pointer; transition: all .15s; white-space: nowrap; }
+  .rs-close:hover { border-color: var(--accent); color: var(--accent); }
+  .rs-body { flex: 1; display: flex; gap: 16px; padding: 12px 20px 16px; min-height: 0; }
+  .rs-view { flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 0; }
+  .rs-tabs { display: flex; gap: 6px; flex: none; }
+  .rs-tab { padding: 9px 18px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--muted); font-size: 15.5px; cursor: pointer; transition: all .15s; }
+  .rs-tab:hover { color: var(--ink); border-color: #3d4d5c; }
+  .rs-tab.active { background: var(--accent); border-color: var(--accent); color: #1a1400; font-weight: 700; }
+  .rs-guide { display: flex; gap: 10px; flex: none; }
+  .rs-step { flex: 1; display: flex; gap: 9px; align-items: flex-start; background: rgba(232,161,60,0.07); border: 1px solid rgba(232,161,60,0.26);
+    border-radius: 9px; padding: 9px 12px; font-size: 13.5px; line-height: 1.5; color: #d3dbe2; }
+  .rs-step > b { flex: none; width: 21px; height: 21px; border-radius: 50%; background: var(--accent); color: #1a1400; font-size: 13px;
+    display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+  .rs-step .hl { color: #ffd08a; }
+  .rs-step .hot { color: #ff8a72; }
+  #rsHint b { color: var(--accent); font-size: 13px; margin-right: 6px; }
+  .rs-card.conc { border-color: rgba(232,161,60,0.42); background: rgba(232,161,60,0.07); }
+  .rs-card.conc h4 { color: var(--accent); }
+  #rsConc { font-size: 12.8px; line-height: 1.5; color: #dbe3ea; }
+  #rsConc b { color: #ffb26b; }
+  #rsConc .em { color: #ff8a72; font-weight: 600; }
+  #rsConc .dim { color: var(--muted); }
+  #rsConc .line { display: block; padding-left: 12px; text-indent: -12px; }
+  #rsConc i { font-style: normal; color: var(--accent); }
+  .rs-stage { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; min-width: 0; position: relative; }
+  #rsCanvas { height: 100%; width: auto; max-width: 100%; aspect-ratio: 1/1; border-radius: 10px; border: 1px solid #22303d; cursor: crosshair; touch-action: none; background: #0d141a; }
+  .rs-under { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 14px; font-size: 13.5px; line-height: 1.5; color: var(--muted); }
+  .rs-tools { display: flex; align-items: center; gap: 8px; flex: none; }
+  .rs-tools label { display: flex; align-items: center; gap: 6px; cursor: pointer; white-space: nowrap; font-size: 13.5px; }
+  .rs-tools input { accent-color: var(--accent); }
+  .rs-tools button { background: var(--panel2); border: 1px solid var(--line); color: var(--ink); border-radius: 7px; padding: 7px 13px; font-size: 13.5px; cursor: pointer; white-space: nowrap; }
+  .rs-tools button:hover { border-color: var(--accent); color: var(--accent); }
+  .rs-tools button.on { border-color: var(--accent); color: var(--accent); background: rgba(232,161,60,0.12); }
+  .rs-side { width: 330px; flex: none; overflow-y: auto; padding-right: 2px; }
+  .rs-side::-webkit-scrollbar { width: 6px; } .rs-side::-webkit-scrollbar-thumb { background: #2c3a47; border-radius: 3px; }
+  .rs-card { background: var(--panel); border: 1px solid var(--line); border-radius: 11px; padding: 10px 14px; margin-bottom: 6px; }
+  .rs-card h4 { font-size: 13px; letter-spacing: 1.4px; color: var(--muted); font-weight: 600; margin-bottom: 7px; text-transform: uppercase; }
+  .rs-kv { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; padding: 4px 0; color: #b9c4ce; border-bottom: 1px dashed rgba(255,255,255,0.045); }
+  .rs-kv:last-child { border-bottom: none; }
+  .rs-kv b { color: var(--accent); font-weight: 600; text-align: right; }
+  .rs-kv em { font-style: normal; color: #e25b5b; font-weight: 600; }
+  /* 元数据：两列紧凑排布，避免在 1366×768 下需要滚动 */
+  #rsMeta { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
+  #rsMeta .rs-kv { border-bottom: none; padding: 1.5px 0; font-size: 11.5px; gap: 6px; line-height: 1.45; }
+  #rsMeta .rs-kv span { color: #8494a1; font-size: 11px; white-space: nowrap; }
+  #rsMeta .rs-kv b { text-align: right; font-size: 11.5px; }
+  /* 统计 / 地震动：两列，节省纵向空间 */
+  #rsStats, #rsQuake { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+  #rsStats .rs-kv, #rsQuake .rs-kv { border-bottom: none; padding: 2px 0; font-size: 11px; line-height: 1.4; align-items: baseline; }
+  #rsStats .rs-kv span, #rsQuake .rs-kv span { color: #8494a1; white-space: nowrap; }
+  #rsStats .rs-kv b, #rsQuake .rs-kv b { font-size: 11.5px; text-align: right; }
+  #rsQuake .rs-kv.full { grid-column: 1 / -1; }
+  .conc-note { font-size: 10.5px; color: #7c8894; margin: -1px 0 5px; letter-spacing: .2px; }
+  /* 技术参数抽屉：默认收起，点开才显示 */
+  .rs-more { display: none; }
+  .rs-more.on { display: block; }
+  #rsMoreBtn { width: 100%; margin: 1px 0 4px; padding: 5px 10px; border-radius: 9px; border: 1px dashed var(--line); background: transparent; color: var(--muted); font-size: 12px; cursor: pointer; font-family: inherit; }
+  #rsMoreBtn:hover { color: var(--accent); border-color: rgba(232,161,60,0.5); }
+  .rs-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; font-size: 12px; color: #b9c4ce; }
+  .rs-legend span { display: flex; align-items: center; gap: 7px; }
+  .rs-legend i { width: 11px; height: 11px; border-radius: 2px; flex: none; }
+  #rsSpec { width: 100%; height: 78px; display: block; }
+  /* 悬停探针：鼠标移到哪讲到哪 */
+  .rs-probe { position: fixed; z-index: 70; pointer-events: none; width: 236px;
+    background: rgba(11,18,25,0.95); border: 1px solid rgba(232,161,60,0.42); border-left: 3px solid var(--accent);
+    border-radius: 9px; padding: 9px 11px; font-size: 12.5px; line-height: 1.6; color: #dbe3ea;
+    box-shadow: 0 10px 26px rgba(0,0,0,0.55); opacity: 0; }
+  .rs-probe.on { opacity: 1; }
+  .rs-probe .p-h { color: var(--accent); font-weight: 700; font-size: 12.5px; margin-bottom: 5px; letter-spacing: .3px; }
+  .rs-probe .p-r { display: flex; gap: 7px; }
+  .rs-probe .p-r > span { flex: none; width: 30px; color: #7f8d99; }
+  .rs-probe .p-r > b { font-weight: 600; }
+  .rs-probe .p-tag { display: inline-block; margin-top: 6px; padding: 1px 9px; border-radius: 10px; font-size: 11.5px; font-weight: 700; }
+
+  /* 框选统计卡 */
+  .rs-region { position: fixed; z-index: 71; width: 244px; display: none;
+    background: rgba(11,18,25,0.96); border: 1px solid rgba(232,161,60,0.55); border-radius: 10px;
+    padding: 10px 12px; font-size: 12.5px; color: #dbe3ea; box-shadow: 0 12px 30px rgba(0,0,0,0.55); }
+  .rs-region.on { display: block; }
+  .rs-region .rg-h { display: flex; align-items: center; justify-content: space-between; color: var(--accent); font-weight: 700; font-size: 12.5px; margin-bottom: 6px; }
+  .rs-region .rg-x { cursor: pointer; color: #7f8d99; font-size: 15px; line-height: 1; padding: 0 2px; }
+  .rs-region .rg-x:hover { color: var(--ink); }
+  .rs-region .rg-r { display: flex; justify-content: space-between; padding: 2.5px 0; border-bottom: 1px dashed rgba(255,255,255,0.06); }
+  .rs-region .rg-r:last-child { border-bottom: none; }
+  .rs-region .rg-r span { color: #8b98a4; }
+  .rs-region .rg-r b { font-weight: 600; color: #eef3f7; }
+  .rs-region .rg-r b.hot { color: #ff9a72; }
+
+  .rs-toast { position: fixed; z-index: 60; left: 50%; bottom: 96px; transform: translateX(-50%) translateY(10px); max-width: 760px;
+    background: rgba(232,161,60,0.96); color: #1a1400; font-size: 16px; font-weight: 600; line-height: 1.5;
+    padding: 12px 22px; border-radius: 12px; box-shadow: 0 8px 28px rgba(0,0,0,0.45);
+    opacity: 0; pointer-events: none; transition: opacity .45s, transform .45s; }
+  .rs-toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+<div id="scene"></div>
+
+<div class="hud">
+  <div class="title-box">
+    <span class="tag">3D 地震灾害模拟器</span>
+    <h1 id="sceneTitle">房屋震害 · 三材质倒塌</h1>
+    <p id="sceneDesc">点击选择房屋材质，再点击震级触发地震</p>
+  </div>
+  <div class="fs-ctrl" id="fsCtrl">字号 <button data-fs="1" title="缩小字号">A−</button><button data-fs="1.15" class="on" title="默认字号">A</button><button data-fs="1.3" title="放大字号">A+</button></div>
+</div>
+
+<div class="scene-switch">
+  <button class="scene-btn active" id="sceneHouse">房屋震害</button>
+  <button class="scene-btn" id="sceneHill">山体滑坡</button>
+  <button class="scene-btn" id="sceneBody">人体震害</button>
+  <button class="scene-btn rs-btn" id="sceneRS">遥感影像</button>
+</div>
+
+<div class="legend" id="legend"></div>
+<div class="status-bar" id="statusBar">请选择房屋材质</div>
+<div class="hint">鼠标拖动旋转视角 · 滚轮缩放</div>
+<div class="source-tag" id="sourceTag">数据来源：加载中…</div>
+
+<div class="hill-info" id="hillInfo">
+  <div class="hi-head">滑坡规模分级</div>
+  <div id="hiRows"></div>
+  <div class="hi-foot" id="hiFoot"></div>
+</div>
+
+<div class="bubble" id="bubble">
+  <span class="b-title" id="bTitle"></span>
+  <span class="b-body" id="bBody"></span>
+  <span class="b-cause" id="bCause"></span>
+  <span class="b-injury" id="bInjury"></span>
+</div>
+
+<!-- 破坏过程时间轴：按时间先后逐条追加，同时保留显示 -->
+<div class="timeline" id="timeline">
+  <div class="tl-head">破坏过程记录 <span id="tlScene"></span></div>
+  <div class="tl-src" id="tlSrc"></div>
+  <div class="tl-list" id="tlList"></div>
+</div>
+
+<!-- 楼层破坏分布：同一烈度下三种结构的对比 -->
+<div class="floor-panel" id="floorPanel">
+  <div class="fp-head">楼层破坏分布 <span id="fpMag">Ⅷ 度</span></div>
+  <div class="fp-cols" id="fpCols"></div>
+  <div class="fp-note" id="fpNote"></div>
+</div>
+
+<!-- ==================== 遥感数字影像分析 ==================== -->
+<div class="rs-overlay" id="rsOverlay">
+  <div class="rs-head">
+    <div>
+      <span class="tag">REMOTE SENSING · 遥感数字影像</span>
+      <h2>多光谱影像震前 / 震后变化检测</h2>
+      <p id="rsSubtitle">研究区 6.0 km × 6.0 km ｜ 20 m 分辨率 ｜ 5 波段（B2/B3/B4/B8/B11）｜ 与三维场景同一研究区 ｜ 触发地震后自动生成震后影像</p>
+    </div>
+    <div class="rs-actions">
+      <div class="rs-quick">
+        <span>烈度</span>
+        <input type="range" id="rsMagRange" min="6" max="12" step="1" value="8">
+        <b id="rsMagVal">Ⅷ</b>
+      </div>
+      <button class="rs-close" id="rsClose">返回三维场景</button>
+    </div>
+  </div>
+  <div class="rs-body">
+    <div class="rs-view">
+      <div class="rs-tabs" id="rsTabs">
+        <button class="rs-tab active" data-mode="tc">真彩色合成</button>
+        <button class="rs-tab" data-mode="fc">标准假彩色</button>
+        <button class="rs-tab" data-mode="ndvi">NDVI 植被指数</button>
+        <button class="rs-tab" data-mode="cls">地物分类</button>
+        <button class="rs-tab" data-mode="chg">变化检测</button>
+      </div>
+      <div class="rs-guide">
+        <div class="rs-step"><b>1</b><span><b>拖动中间竖线</b>：左边是地震前、右边是地震后，拖一下就能对比同一块地的变化</span></div>
+        <div class="rs-step"><b>2</b><span><b>点上面标签</b>：换一种"看法"——看外观 / 看植被烧了多少 / 看房子倒了哪 / 看哪里变了</span></div>
+        <div class="rs-step"><b>3</b><span><b>拖右上烈度 / 点影像</b>：震级调大红色损毁区跟着变大；<span class="hot">点一下影像</span>可框选统计该处损毁率</span></div>
+      </div>
+      <div class="rs-stage" id="rsStage">
+        <canvas id="rsCanvas" width="900" height="900"></canvas>
+      </div>
+      <div class="rs-probe" id="rsProbe"></div>
+      <div class="rs-region" id="rsRegion"></div>
+      <div class="rs-under">
+        <span id="rsHint"><b id="rsModeName">真彩色合成</b>　按人眼所见合成：绿色是植被，灰白是屋顶和道路，深蓝是河水</span>
+        <div class="rs-tools">
+          <label><input type="checkbox" id="rsGridChk" checked> 1 km 公里网</label>
+          <button id="rsHeatBtn">热力图</button>
+          <button id="rsSweepBtn">自动对比</button>
+          <button id="rsSaveBtn">保存对比图</button>
+        </div>
+      </div>
+    </div>
+    <aside class="rs-side">
+      <div class="rs-card conc">
+        <h4>解译结论 / INTERPRETATION</h4>
+        <div class="conc-note">颜色指「变化检测」专题</div>
+        <div id="rsConc"></div>
+      </div>
+      <div class="rs-card">
+        <h4>变化检测统计 / CHANGE</h4>
+        <div id="rsStats"></div>
+      </div>
+      <div class="rs-card">
+        <h4>图例 / LEGEND</h4>
+        <div class="rs-legend" id="rsLegend"></div>
+      </div>
+      <div class="rs-card">
+        <h4>地震动参数 / SHAKING</h4>
+        <div id="rsQuake"></div>
+      </div>
+      <button id="rsMoreBtn">▾ 展开影像参数与光谱曲线</button>
+      <div class="rs-more" id="rsMore">
+        <div class="rs-card">
+          <h4>影像元数据 / METADATA</h4>
+          <div id="rsMeta"></div>
+        </div>
+        <div class="rs-card">
+          <h4>像元光谱曲线 / SPECTRUM</h4>
+          <canvas id="rsSpec" width="520" height="150"></canvas>
+          <div id="rsSpecTxt" style="font-size:10.5px;color:var(--muted);margin-top:6px;line-height:1.6;">移动鼠标到影像上查看该像元的 5 波段反射率</div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<div class="control-panel">
+  <div class="row-label" id="step1Label">第一步 · 选择房屋材质</div>
+  <div class="material-row" id="materialRow"></div>
+  <div class="row-label">第二步 · 选择震级（烈度）</div>
+  <div class="mag-row" id="magRow">
+    <button class="mag-btn small" data-mag="6">Ⅵ</button>
+    <button class="mag-btn small" data-mag="7">Ⅶ</button>
+    <button class="mag-btn mid" data-mag="8">Ⅷ</button>
+    <button class="mag-btn mid" data-mag="9">Ⅸ</button>
+    <button class="mag-btn big" data-mag="10">Ⅹ</button>
+    <button class="mag-btn big" data-mag="11">Ⅺ</button>
+    <button class="mag-btn big" data-mag="12">Ⅻ</button>
+  </div>
+  <div class="action-row">
+    <button class="action-btn go" id="goBtn">触发地震</button>
+    <button class="action-btn reset" id="resetBtn">重置全部</button>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const ROMAN = ['Ⅰ','Ⅱ','Ⅲ','Ⅳ','Ⅴ','Ⅵ','Ⅶ','Ⅷ','Ⅸ','Ⅹ','Ⅺ','Ⅻ'];
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x101820);
+scene.fog = new THREE.Fog(0x101820, 60, 260);
+const camera = new THREE.PerspectiveCamera(50, window.innerWidth/window.innerHeight, 0.1, 400);
+camera.position.set(0, 27, 55);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.getElementById('scene').appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 5, -3);
+controls.enableDamping = true; controls.dampingFactor = 0.08;
+controls.minDistance = 6; controls.maxDistance = 150; controls.maxPolarAngle = Math.PI*0.62;
+
+scene.add(new THREE.AmbientLight(0x8899aa, 1.5));
+const dir = new THREE.DirectionalLight(0xffffff, 2.4);
+dir.position.set(10,18,10); dir.castShadow = true;
+dir.shadow.mapSize.set(2048,2048);
+dir.shadow.camera.left=-34; dir.shadow.camera.right=34;
+dir.shadow.camera.top=34; dir.shadow.camera.bottom=-34; dir.shadow.camera.far=120;
+dir.shadow.bias=-0.0004; dir.shadow.normalBias=0.06;
+scene.add(dir);
+scene.add(dir.target);
+// 跟随当前场景调整阴影范围（三个场景分别布置在 x=0 / +90 / -90）
+function focusShadow(cx, cz, size){
+  dir.target.position.set(cx, 0, cz);
+  dir.target.updateMatrixWorld();
+  dir.position.set(cx + size*0.45, size*1.25, cz + size*0.75);
+  const c = dir.shadow.camera;
+  c.left = -size; c.right = size; c.top = size; c.bottom = -size;
+  c.far = size*6;
+  c.updateProjectionMatrix();
+}
+const fill = new THREE.DirectionalLight(0x5588cc, 0.6); fill.position.set(-8,5,-6); scene.add(fill);
+
+function makeCanvasTexture(draw, w=256, h=256){
+  const c = document.createElement('canvas'); c.width=w; c.height=h;
+  const ctx = c.getContext('2d');
+  draw(ctx, w, h);
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.anisotropy = 4;
+  return tex;
+}
+
+const groundTex = makeCanvasTexture((ctx,w,h)=>{
+  ctx.fillStyle = '#3a444f'; ctx.fillRect(0,0,w,h);
+  for(let i=0;i<400;i++){ ctx.fillStyle = `rgba(0,0,0,${Math.random()*0.12})`; ctx.fillRect(Math.random()*w, Math.random()*h, 2, 2); }
+});
+groundTex.repeat.set(24,24);
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(120,120), new THREE.MeshStandardMaterial({ map:groundTex, roughness:0.95 }));
+ground.rotation.x=-Math.PI/2; ground.receiveShadow=true;
+
+const brickTex = makeCanvasTexture((ctx,w,h)=>{
+  ctx.fillStyle = '#c9744a'; ctx.fillRect(0,0,w,h);
+  const bw=64, bh=32;
+  for(let r=0;r<8;r++){
+    const off=(r%2===0)?0:bw/2;
+    for(let c=-1;c<5;c++){
+      const x=off+c*bw, y=r*bh;
+      ctx.fillStyle = `hsl(${15+Math.random()*8}, ${45+Math.random()*10}%, ${45+Math.random()*10}%)`;
+      ctx.fillRect(x+1, y+1, bw-2, bh-2);
+    }
+  }
+  ctx.strokeStyle = '#b8aa90'; ctx.lineWidth=2;
+  for(let r=0;r<=8;r++){ ctx.beginPath(); ctx.moveTo(0,r*bh); ctx.lineTo(w,r*bh); ctx.stroke(); }
+  for(let r=0;r<8;r++){ const off=(r%2===0)?0:bw/2; for(let c=-1;c<5;c++){ const x=off+c*bw; ctx.beginPath(); ctx.moveTo(x,r*bh); ctx.lineTo(x,(r+1)*bh); ctx.stroke(); } }
+});
+brickTex.repeat.set(2,3);
+
+const woodTex = makeCanvasTexture((ctx,w,h)=>{
+  ctx.fillStyle = '#b8873f'; ctx.fillRect(0,0,w,h);
+  for(let i=0;i<30;i++){
+    ctx.strokeStyle = `rgba(90,60,25,${0.2+Math.random()*0.3})`;
+    ctx.lineWidth = 1+Math.random()*2;
+    const y = Math.random()*h;
+    ctx.beginPath(); ctx.moveTo(0,y);
+    ctx.bezierCurveTo(w*0.3, y+(Math.random()-0.5)*8, w*0.6, y+(Math.random()-0.5)*8, w, y);
+    ctx.stroke();
+  }
+});
+woodTex.repeat.set(1,2);
+
+const concreteTex = makeCanvasTexture((ctx,w,h)=>{
+  ctx.fillStyle = '#cfc9bd'; ctx.fillRect(0,0,w,h);
+  for(let i=0;i<300;i++){ ctx.fillStyle = `rgba(0,0,0,${Math.random()*0.06})`; ctx.fillRect(Math.random()*w, Math.random()*h, 3, 3); }
+});
+concreteTex.repeat.set(2,2);
+
+const GROUND_Y = 0.3;
+const GRAVITY = 24;
+const debris = [];
+
+function pushDebris(mesh, ox, oy, oz) {
+  mesh.userData = { ox, oy, oz, vx:0, vy:0, vz:0, vrx:(Math.random()-0.5)*8, vry:(Math.random()-0.5)*8, vrz:(Math.random()-0.5)*8, detached:false };
+  return mesh;
+}
+
+const houseGroup = new THREE.Group();
+const hillGroup = new THREE.Group();
+const bodyGroup = new THREE.Group();
+scene.add(houseGroup);
+houseGroup.add(ground);
+scene.add(hillGroup);
+scene.add(bodyGroup);
+hillGroup.position.set(90, 0, 0);
+bodyGroup.position.set(-90, 0, 0);
+
+const S = 2.0;
+const housePad = new THREE.Mesh(new THREE.BoxGeometry(24*S,0.4,12*S), new THREE.MeshStandardMaterial({ color:0x38434f, roughness:0.7 }));
+housePad.position.y=0.2; housePad.receiveShadow=true; houseGroup.add(housePad);
+// 人行道（比路面略高，浅色）
+const sidewalk = new THREE.Mesh(new THREE.BoxGeometry(24*S,0.12,1.8*S), new THREE.MeshStandardMaterial({ color:0x59636e, roughness:0.85 }));
+sidewalk.position.set(0, 0.42, 8.2*S);
+sidewalk.receiveShadow=true; houseGroup.add(sidewalk);
+const sidewalk2 = sidewalk.clone(); sidewalk2.position.z = -8.2*S; houseGroup.add(sidewalk2);
+
+const winMat = new THREE.MeshStandardMaterial({ color:0x9fd0e8, roughness:0.15, metalness:0.4 });
+const doorMat = new THREE.MeshStandardMaterial({ color:0x6a4a2a, roughness:0.8 });
+const concreteMat = new THREE.MeshStandardMaterial({ map:concreteTex, roughness:0.9 });
+const brickMat = new THREE.MeshStandardMaterial({ map:brickTex, roughness:0.9 });
+const woodMat = new THREE.MeshStandardMaterial({ map:woodTex, roughness:0.85 });
+
+function addStairs(g, x, z, floors, floorH, s, mat){
+  const stepH = 0.2*s, stepD = 0.4*s;
+  for(let f=0; f<floors-1; f++){
+    const baseY = f*floorH;
+    for(let i=0;i<6;i++){
+      const step = new THREE.Mesh(new THREE.BoxGeometry(0.7*s, stepH, stepD), mat);
+      const sy = baseY + i*stepH + stepH/2;
+      const sz = z + i*stepD;
+      step.position.set(x, sy, sz);
+      step.castShadow = true;
+      g.add(step);
+    }
+  }
+}
+
+function buildRC() {
+  const g = new THREE.Group();
+  g.userData = { type:'rc', color:0xd8d2c6, pieces:[] };
+  const colMat = new THREE.MeshStandardMaterial({ color:0x8a97a3, roughness:0.8 });
+  const slabMat = concreteMat;
+  const s = S;
+  const floors = 4, floorH = 1.6*s, wallW = 3.2*s, wallD = 2.6*s;
+
+  for (let f=0; f<floors; f++) {
+    const baseY = f * floorH;
+    const colGeo = new THREE.BoxGeometry(0.34*s, floorH, 0.34*s);
+    [[-1.5,-1.2],[1.5,-1.2],[-1.5,1.2],[1.5,1.2]].forEach(p=>{
+      const c = new THREE.Mesh(colGeo, colMat);
+      const ox=p[0]*s, oy=baseY+floorH/2, oz=p[1]*s;
+      c.position.set(ox,oy,oz); c.castShadow=true; g.add(c);
+      g.userData.pieces.push(pushDebris(c, ox,oy,oz));
+    });
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(wallW+0.1*s, 0.16*s, wallD+0.1*s), slabMat);
+    const sy = baseY + floorH;
+    slab.position.y = sy; slab.castShadow=true; g.add(slab);
+    g.userData.pieces.push(pushDebris(slab, 0, sy, 0));
+  }
+  addStairs(g, 0.8*s, 0, floors, floorH, s, slabMat);
+
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(wallW+0.4*s, 0.25*s, wallD+0.4*s), new THREE.MeshStandardMaterial({ color:0x6b7280, roughness:0.9 }));
+  const ry = floors*floorH + 0.12*s;
+  roof.position.y = ry; roof.castShadow=true; g.add(roof);
+  g.userData.pieces.push(pushDebris(roof, 0, ry, 0));
+
+  const winGeo = new THREE.PlaneGeometry(0.7*s, 0.9*s);
+  for (let f=0; f<floors; f++) {
+    const wy = f*floorH + floorH*0.55;
+    [-0.7, 0.7].forEach(wx=>{
+      const w=new THREE.Mesh(winGeo, winMat); w.position.set(wx*s, wy, -1.31*s); g.add(w);
+      const w2=new THREE.Mesh(winGeo, winMat); w2.position.set(wx*s, wy, 1.31*s); g.add(w2);
+    });
+  }
+  const door = new THREE.Mesh(new THREE.PlaneGeometry(0.8*s, 1.2*s), doorMat);
+  door.position.set(0, 0.6*s, -1.31*s); g.add(door);
+
+  // ---- 建筑细节：阳台、栏杆、空调外机、屋顶水箱、女儿墙 ----
+  const railMat = new THREE.MeshStandardMaterial({ color:0xb8c2cc, roughness:0.4, metalness:0.6 });
+  const acMat = new THREE.MeshStandardMaterial({ color:0xc9ced4, roughness:0.7 });
+  for(let f=1; f<floors; f++){
+    const by = f*floorH;
+    const bal = new THREE.Mesh(new THREE.BoxGeometry(1.7*s, 0.09*s, 0.55*s), slabMat);
+    bal.position.set(0, by, -1.42*s); bal.castShadow = true; g.add(bal);
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(1.7*s, 0.06*s, 0.05*s), railMat);
+    rail.position.set(0, by+0.38*s, -1.69*s); g.add(rail);
+    for(let i=-2;i<=2;i++){
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.04*s, 0.38*s, 0.04*s), railMat);
+      post.position.set(i*0.36*s, by+0.19*s, -1.69*s); g.add(post);
+    }
+    if(f%2===1){
+      const ax = 1.62*s, ay = by+0.5*s, az = (f%3===1?0.6*s:-0.6*s);
+      const ac = new THREE.Mesh(new THREE.BoxGeometry(0.36*s, 0.32*s, 0.5*s), acMat);
+      ac.position.set(ax, ay, az); ac.castShadow = true; g.add(ac);
+      g.userData.pieces.push(pushDebris(ac, ax, ay, az));
+    }
+  }
+  // 屋顶水箱
+  const tankMat = new THREE.MeshStandardMaterial({ color:0x9aa4ae, roughness:0.75 });
+  const tank = new THREE.Mesh(new THREE.CylinderGeometry(0.5*s, 0.5*s, 0.7*s, 12), tankMat);
+  const tankY = ry + 0.6*s;
+  tank.position.set(0.7*s, tankY, 0.35*s); tank.castShadow = true; g.add(tank);
+  g.userData.pieces.push(pushDebris(tank, 0.7*s, tankY, 0.35*s));
+  // 女儿墙
+  const parapetMat = new THREE.MeshStandardMaterial({ color:0xa8b0b8, roughness:0.9 });
+  [-1,1].forEach(sd=>{
+    const pw = new THREE.Mesh(new THREE.BoxGeometry(wallW+0.4*s, 0.32*s, 0.1*s), parapetMat);
+    pw.position.set(0, ry+0.2*s, sd*(wallD/2+0.15*s)); pw.castShadow = true; g.add(pw);
+  });
+  return g;
+}
+
+function buildBrick() {
+  const g = new THREE.Group();
+  g.userData = { type:'brick', color:0xd9703f, pieces:[] };
+  const bm = brickMat;
+  const s=S, bw=0.5*s, bh=0.18*s, bd=0.5*s;
+  const floors=3, rows=8, cols=5;
+  const wallW=cols*bw, floorH=rows*bh, depth=1.1*s;
+
+  function addWall(px, pz, width){
+    const cnt=Math.floor(width/bw)+1;
+    for(let f=0;f<floors;f++){
+      const fy=f*floorH;
+      for(let r=0;r<rows;r++){
+        const off=(r%2===0)?0:bw/2;
+        for(let c=-1;c<=cnt;c++){
+          const bx=off+c*bw;
+          if(bx<-width/2-0.05||bx>width/2+0.05)continue;
+          const brick=new THREE.Mesh(new THREE.BoxGeometry(bw*0.96,bh*0.92,depth),bm);
+          const ox=px+bx, oy=GROUND_Y+fy+r*bh+bh/2, oz=pz;
+          brick.position.set(ox,oy,oz);
+          brick.castShadow=true;
+          g.add(brick);
+          g.userData.pieces.push(pushDebris(brick, ox,oy,oz));
+        }
+      }
+    }
+  }
+  const ww=wallW, dd=depth;
+  addWall(-ww/2, -dd/2, ww);
+  addWall(ww/2, -dd/2, ww);
+  addWall(-ww/2, dd/2, ww);
+  addWall(ww/2, dd/2, ww);
+
+  for(let f=0; f<floors-1; f++){
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(ww-0.2*s, 0.14*s, dd-0.2*s), concreteMat);
+    const sy = GROUND_Y + (f+1)*floorH;
+    slab.position.y = sy; slab.castShadow=true; g.add(slab);
+    g.userData.pieces.push(pushDebris(slab, 0, sy, 0));
+  }
+  addStairs(g, 0.6*s, 0, floors, floorH, s, concreteMat);
+
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(ww+0.6*s, 0.25*s, dd+0.6*s), new THREE.MeshStandardMaterial({ color:0x8a5a2a, roughness:0.9 }));
+  const ry = GROUND_Y + floors*floorH + 0.12*s;
+  roof.position.y = ry; roof.castShadow=true; g.add(roof);
+  g.userData.pieces.push(pushDebris(roof, 0, ry, 0));
+
+  const winGeo = new THREE.PlaneGeometry(0.55*s, 0.7*s);
+  for(let f=0; f<floors; f++){
+    const wy = GROUND_Y + f*floorH + floorH*0.6;
+    const w = new THREE.Mesh(winGeo, winMat); w.position.set(0, wy, -dd/2-0.01); g.add(w);
+    const w2 = new THREE.Mesh(winGeo, winMat); w2.position.set(0, wy, dd/2+0.01); g.add(w2);
+  }
+  const door = new THREE.Mesh(new THREE.PlaneGeometry(0.7*s, 1.1*s), doorMat);
+  door.position.set(0, 0.55*s, -dd/2-0.01); g.add(door);
+
+  // ---- 建筑细节：雨棚、阳台、屋顶烟囱 ----
+  const canopyMat = new THREE.MeshStandardMaterial({ color:0x6a7a8a, roughness:0.8 });
+  const canopy = new THREE.Mesh(new THREE.BoxGeometry(1.25*s, 0.07*s, 0.58*s), canopyMat);
+  canopy.position.set(0, 1.28*s, -dd/2-0.3*s);
+  canopy.rotation.x = -0.22; canopy.castShadow = true; g.add(canopy);
+  // 二层阳台板 + 简易栏杆
+  const balcY = GROUND_Y + floorH;
+  const balc = new THREE.Mesh(new THREE.BoxGeometry(1.7*s, 0.09*s, 0.5*s), concreteMat);
+  balc.position.set(0, balcY, -dd/2-0.26*s); balc.castShadow = true; g.add(balc);
+  const bRail = new THREE.Mesh(new THREE.BoxGeometry(1.7*s, 0.5*s, 0.05*s),
+    new THREE.MeshStandardMaterial({ color:0x7a5a3a, roughness:0.85 }));
+  bRail.position.set(0, balcY+0.3*s, -dd/2-0.5*s); g.add(bRail);
+  // 屋顶烟囱
+  const chimMat = new THREE.MeshStandardMaterial({ color:0x8a5a3a, roughness:0.9 });
+  const chim = new THREE.Mesh(new THREE.BoxGeometry(0.38*s, 0.9*s, 0.38*s), chimMat);
+  const chimY = GROUND_Y + floors*floorH + 0.55*s;
+  chim.position.set(0.8*s, chimY, 0.5*s); chim.castShadow = true; g.add(chim);
+  g.userData.pieces.push(pushDebris(chim, 0.8*s, chimY, 0.5*s));
+  return g;
+}
+
+function buildWood() {
+  const g = new THREE.Group();
+  g.userData = { type:'wood', color:0xc9a05a, pieces:[] };
+  const wm = woodMat;
+  const darkWood = new THREE.MeshStandardMaterial({ color:0x8a5a2a, roughness:0.85 });
+  const s=S;
+  const floors=3, floorH=1.5*s, wallW=3.1*s, wallD=2.5*s;
+
+  for(let f=0;f<floors;f++){
+    const baseY=f*floorH;
+    const postGeo=new THREE.BoxGeometry(0.28*s,floorH,0.28*s);
+    [[-1.45,-1.15],[1.45,-1.15],[-1.45,1.15],[1.45,1.15]].forEach(p=>{
+      const post=new THREE.Mesh(postGeo,wm);
+      const ox=p[0]*s,oy=baseY+floorH/2,oz=p[1]*s;
+      post.position.set(ox,oy,oz); post.castShadow=true; g.add(post);
+      g.userData.pieces.push(pushDebris(post,ox,oy,oz));
+    });
+    const beamY=baseY+floorH;
+    const beamX=new THREE.BoxGeometry(wallW,0.16*s,0.16*s);
+    [[-1.15],[1.15]].forEach(p=>{
+      const beam=new THREE.Mesh(beamX,wm);
+      beam.position.set(0,beamY,p[0]*s); beam.castShadow=true; g.add(beam);
+      g.userData.pieces.push(pushDebris(beam,0,beamY,p[0]*s));
+    });
+    const beamZ=new THREE.BoxGeometry(0.16*s,0.16*s,wallD);
+    [[-1.45],[1.45]].forEach(p=>{
+      const beam=new THREE.Mesh(beamZ,wm);
+      beam.position.set(p[0]*s,beamY,0); beam.castShadow=true; g.add(beam);
+      g.userData.pieces.push(pushDebris(beam,p[0]*s,beamY,0));
+    });
+    const braceGeo=new THREE.BoxGeometry(0.12*s,floorH*0.7,0.12*s);
+    [-1.45,1.45].forEach(bx=>{
+      [-1.15,1.15].forEach(bz=>{
+        const brace=new THREE.Mesh(braceGeo,darkWood);
+        brace.position.set(bx*s, baseY+floorH/2, bz*s);
+        brace.rotation.z=(bx>0?1:-1)*0.5;
+        brace.castShadow=true; g.add(brace);
+      });
+    });
+  }
+  const ridgeH=floors*floorH;
+  const roof=new THREE.Mesh(new THREE.ConeGeometry(2.4*s,1.2*s,4),darkWood);
+  roof.position.y=ridgeH+0.5*s; roof.rotation.y=Math.PI/4; roof.castShadow=true; g.add(roof);
+  g.userData.pieces.push(pushDebris(roof,0,ridgeH+0.5*s,0));
+
+  const winGeo=new THREE.PlaneGeometry(0.6*s,0.8*s);
+  const w1=new THREE.Mesh(winGeo,winMat); w1.position.set(0,1.3*s,-1.21*s); g.add(w1);
+  const w2=new THREE.Mesh(winGeo,winMat); w2.position.set(0,1.3*s,1.21*s); g.add(w2);
+  const door=new THREE.Mesh(new THREE.PlaneGeometry(0.7*s,1.1*s),doorMat); door.position.set(0,0.55*s,-1.21*s); g.add(door);
+
+  // ---- 建筑细节：木阳台、栏杆、门口台阶、挑檐 ----
+  const balcY = 1.5*s;
+  const balc = new THREE.Mesh(new THREE.BoxGeometry(2.0*s, 0.10*s, 0.6*s), wm);
+  balc.position.set(0, balcY, -1.52*s); balc.castShadow = true; g.add(balc);
+  const topRail = new THREE.Mesh(new THREE.BoxGeometry(2.0*s, 0.08*s, 0.08*s), darkWood);
+  topRail.position.set(0, balcY+0.58*s, -1.80*s); g.add(topRail);
+  for(let i=-3;i<=3;i++){
+    const rp = new THREE.Mesh(new THREE.BoxGeometry(0.06*s, 0.55*s, 0.06*s), darkWood);
+    rp.position.set(i*0.3*s, balcY+0.3*s, -1.80*s); g.add(rp);
+  }
+  // 门口台阶
+  [0,1].forEach(i=>{
+    const step = new THREE.Mesh(new THREE.BoxGeometry(1.0*s, 0.12*s, 0.3*s), concreteMat);
+    step.position.set(0, i*0.12*s, -1.36*s-i*0.3*s); step.castShadow = true; g.add(step);
+  });
+  // 屋顶挑檐
+  const eave = new THREE.Mesh(new THREE.BoxGeometry(3.6*s, 0.10*s, 3.0*s), darkWood);
+  eave.position.y = floors*floorH + 0.04*s; eave.castShadow = true; g.add(eave);
+  return g;
+}
+
+const buildings = [];
+function placeHouse(builder, x){
+  const b = builder();
+  b.userData.baseX = x;
+  b.position.set(x, 0, 0);
+  houseGroup.add(b);
+  buildings.push(b);
+  return b;
+}
+placeHouse(buildRC, -14);
+placeHouse(buildBrick, 0);
+placeHouse(buildWood, 14);
+
+function makeTree(x, z){
+  const g = new THREE.Group();
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.2, 2.2, 8), new THREE.MeshStandardMaterial({ color:0x6a4a2a, roughness:0.9 }));
+  trunk.position.y = 1.1; trunk.castShadow = true; g.add(trunk);
+  const crown = new THREE.Mesh(new THREE.SphereGeometry(1.1, 8, 8), new THREE.MeshStandardMaterial({ color:0x4a6b3a, roughness:0.9 }));
+  crown.position.y = 2.6; crown.castShadow = true; g.add(crown);
+  g.position.set(x, 0, z);
+  return g;
+}
+function makeLamp(x, z){
+  const g = new THREE.Group();
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 3.5, 8), new THREE.MeshStandardMaterial({ color:0x555f66, roughness:0.7, metalness:0.5 }));
+  pole.position.y = 1.75; pole.castShadow = true; g.add(pole);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 8), new THREE.MeshStandardMaterial({ color:0xf5e8b0, emissive:0xfff0b0, emissiveIntensity:0.6 }));
+  head.position.y = 3.6; g.add(head);
+  const light = new THREE.PointLight(0xffe9a8, 0.5, 8);
+  light.position.y = 3.6; g.add(light);
+  g.position.set(x, 0, z);
+  return g;
+}
+const trees = [];
+[[-24,-6],[-8,-6],[8,-6],[24,-6],[-20,3.9],[20,3.9],[-14,6.9],[14,6.9],[-27,-2],[27,-2]].forEach(p=>{ const t=makeTree(p[0],p[1]); houseGroup.add(t); });
+[[-26,7.6],[-16,7.6],[16,7.6],[26,7.6]].forEach(p=>{ houseGroup.add(makeLamp(p[0],p[1])); });
+
+// ==================== 城市环境：背景楼群 / 车辆 / 行人 / 街道细节 ====================
+const vehicles = [];
+const pedestrians = [];
+const ROAD_Y = 0.42;   // 路面/人行道顶面高度
+
+// 远景地坪（承载远处背景楼，避免悬空；与主场地边缘衔接、不重叠）
+const farGround = new THREE.Mesh(new THREE.BoxGeometry(180, 0.4, 112),
+  new THREE.MeshStandardMaterial({ color:0x333e49, roughness:0.95 }));
+farGround.position.set(0, 0.2, -68);
+farGround.receiveShadow = true;
+houseGroup.add(farGround);
+
+// --- 程序化立面纹理（一栋楼一个材质，性能友好）---
+// style: glass 玻璃幕墙 / brick 砖墙小窗 / wood 木板墙
+function makeWindowsTex(cols, rows, wallColor, litRatio, style){
+  const cw = 18, ch = 22;
+  const cv = document.createElement('canvas');
+  cv.width = Math.max(8, cols*cw); cv.height = Math.max(8, rows*ch);
+  const cx = cv.getContext('2d');
+  cx.fillStyle = wallColor;
+  cx.fillRect(0, 0, cv.width, cv.height);
+
+  if(style === 'glass'){
+    for(let r=0;r<rows;r++){
+      const y = r*ch;
+      // 楼板带（幕墙的横向分层）
+      cx.fillStyle = 'rgba(255,255,255,0.12)';
+      cx.fillRect(0, y + ch*0.82, cv.width, ch*0.18);
+      for(let i=0;i<cols;i++){
+        const x = i*cw;
+        const lit = Math.random() < litRatio;
+        const g = cx.createLinearGradient(x, y, x+cw, y+ch);
+        if(lit){ g.addColorStop(0,'#e8f5fc'); g.addColorStop(0.55,'#a9cfe4'); g.addColorStop(1,'#6f9bb4'); }
+        else { g.addColorStop(0,'#5c7688'); g.addColorStop(1,'#2e414c'); }
+        cx.fillStyle = g;
+        cx.fillRect(x+1, y+ch*0.08, cw-2, ch*0.70);
+      }
+      // 竖向幕墙龙骨
+      cx.fillStyle = 'rgba(28,38,46,0.55)';
+      for(let i=0;i<=cols;i++) cx.fillRect(i*cw-1, y, 2, ch*0.84);
+    }
+  } else if(style === 'brick'){
+    // 砖缝：横向密缝 + 错缝竖缝
+    cx.fillStyle = 'rgba(0,0,0,0.11)';
+    for(let y=0;y<cv.height;y+=5) cx.fillRect(0, y, cv.width, 1);
+    cx.fillStyle = 'rgba(255,255,255,0.055)';
+    for(let y=0;y<cv.height;y+=5){
+      const off = (Math.floor(y/5)%2)*7;
+      for(let x=off;x<cv.width;x+=14) cx.fillRect(x, y, 1, 5);
+    }
+    // 小窗 + 窗框 + 窗台
+    for(let r=0;r<rows;r++) for(let i=0;i<cols;i++){
+      const x = i*cw, y = r*ch;
+      const lit = Math.random() < litRatio*0.7;
+      cx.fillStyle = lit ? '#ffe6a8' : '#2b3a44';
+      cx.fillRect(x+cw*0.30, y+ch*0.24, cw*0.40, ch*0.42);
+      cx.strokeStyle = 'rgba(232,232,225,0.62)'; cx.lineWidth = 1.4;
+      cx.strokeRect(x+cw*0.30, y+ch*0.24, cw*0.40, ch*0.42);
+      cx.fillStyle = 'rgba(255,255,255,0.28)';
+      cx.fillRect(x+cw*0.25, y+ch*0.67, cw*0.50, 2);
+    }
+  } else {
+    // 木板墙：横向板缝 + 木纹
+    for(let y=0;y<cv.height;y+=7){
+      cx.fillStyle = 'rgba(0,0,0,0.17)'; cx.fillRect(0, y, cv.width, 1.5);
+      cx.fillStyle = 'rgba(255,235,205,0.05)'; cx.fillRect(0, y+2, cv.width, 1);
+    }
+    for(let r=0;r<rows;r++) for(let i=0;i<cols;i++){
+      const x = i*cw, y = r*ch;
+      const lit = Math.random() < litRatio*0.8;
+      cx.fillStyle = lit ? '#ffdca0' : '#2c2620';
+      cx.fillRect(x+cw*0.24, y+ch*0.26, cw*0.52, ch*0.40);
+      cx.strokeStyle = 'rgba(90,60,36,0.92)'; cx.lineWidth = 2;
+      cx.strokeRect(x+cw*0.24, y+ch*0.26, cw*0.52, ch*0.40);
+      cx.beginPath(); cx.moveTo(x+cw*0.5, y+ch*0.26); cx.lineTo(x+cw*0.5, y+ch*0.66); cx.stroke();
+    }
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.magFilter = THREE.LinearFilter;
+  if(THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+// --- 屋顶：平顶带设备 / 红瓦坡顶 / 黑瓦陡坡 ---
+function buildRoof(kind, w, d, h){
+  const g = new THREE.Group();
+  if(kind === 'flat'){
+    const par = new THREE.Mesh(new THREE.BoxGeometry(w+0.24, 0.46, d+0.24),
+      new THREE.MeshStandardMaterial({ color:0x59636e, roughness:0.9 }));
+    par.position.y = 0.23; par.castShadow = true; g.add(par);
+    const n = 1 + Math.floor(Math.random()*3);
+    for(let i=0;i<n;i++){
+      const bw = 0.6 + Math.random()*0.9, bh = 0.32 + Math.random()*0.5;
+      const box = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bw*0.82),
+        new THREE.MeshStandardMaterial({ color: Math.random()<0.5 ? 0x8b959d : 0xa8a49b, roughness:0.85 }));
+      box.position.set((Math.random()-0.5)*Math.max(0.5, w-1.8), 0.46+bh/2, (Math.random()-0.5)*Math.max(0.5, d-1.8));
+      box.castShadow = true; g.add(box);
+    }
+    if(h > 26 && Math.random() < 0.6){
+      const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.08, 2.4, 6),
+        new THREE.MeshStandardMaterial({ color:0x9aa3ab, roughness:0.6, metalness:0.6 }));
+      mast.position.set(w*0.16, 1.6, -d*0.16); g.add(mast);
+    }
+  } else {
+    const tileCol = kind === 'tile' ? 0xa8482f : 0x373c3f;
+    const rh = Math.min(h*0.44, kind === 'tile' ? 2.6 : 2.3);
+    const roof = new THREE.Mesh(new THREE.CylinderGeometry(0, 1, 1, 4, 1),
+      new THREE.MeshStandardMaterial({ color: tileCol, roughness:0.88 }));
+    roof.rotation.y = Math.PI/4;
+    roof.scale.set((w+0.55)*0.80, rh, (d+0.55)*0.80);
+    roof.position.y = 0.02 + rh/2;
+    roof.castShadow = true; roof.receiveShadow = true;
+    g.add(roof);
+    // 屋脊
+    const ridge = new THREE.Mesh(new THREE.BoxGeometry(w*0.16, 0.16, d*0.16),
+      new THREE.MeshStandardMaterial({ color: kind==='tile'?0x7d3524:0x24282a, roughness:0.9 }));
+    ridge.position.y = rh; g.add(ridge);
+    // 烟囱（木构村落）
+    if(kind === 'dark' && Math.random() < 0.65){
+      const ch = new THREE.Mesh(new THREE.BoxGeometry(0.42, 1.1, 0.42),
+        new THREE.MeshStandardMaterial({ color:0x6d6259, roughness:0.95 }));
+      ch.position.set(w*0.24, rh*0.62, d*0.05); ch.castShadow = true; g.add(ch);
+    }
+  }
+  return g;
+}
+
+// ==================== 三种城市风格：选什么材质，整座城就重建为什么样 ====================
+const CITY_STYLE = {
+  rc: {
+    name: '现代都市', tagline: '玻璃幕墙 · 高层为主',
+    wall: ['#8d959e','#7b8792','#98a1a9','#728089','#a3aab1'],
+    win: 'glass', roof: 'flat', lowP: 0.30,
+    ground: 0x333e49, roadTone: 0x3c4651
+  },
+  brick: {
+    name: '县城老城', tagline: '红砖墙 · 坡屋顶',
+    wall: ['#9c6a54','#a87a62','#8e6049','#b08a6c','#94614b'],
+    win: 'brick', roof: 'tile', lowP: 0.55,
+    ground: 0x3f382f, roadTone: 0x4a423a
+  },
+  wood: {
+    name: '乡村古镇', tagline: '木构 · 黑瓦陡坡',
+    wall: ['#7b5a3b','#8a6a47','#6a4c33','#93744f'],
+    win: 'wood', roof: 'dark', lowP: 0.6,
+    ground: 0x35462f, roadTone: 0x4a4436
+  }
+};
+
+// --- 背景楼群 ---
+const cityTowers = [];
+let cityStyleKey = 'rc';
+
+function buildTower(x, z, w, d, h, styleKey){
+  const st = CITY_STYLE[styleKey] || CITY_STYLE.rc;
+  const g = new THREE.Group();
+  const wallColor = st.wall[Math.floor(Math.random()*st.wall.length)];
+  const glass = (styleKey === 'rc');
+  const cols = Math.max(2, Math.round(w / (glass ? 1.25 : 1.15)));
+  const rows = Math.max(2, Math.round(h / (glass ? 1.9 : 2.1)));
+  const litRatio = glass ? (0.30 + Math.random()*0.30) : (0.14 + Math.random()*0.20);
+  const tex = makeWindowsTex(cols, rows, wallColor, litRatio, st.win);
+  const mat = new THREE.MeshStandardMaterial({
+    map: tex,
+    roughness: glass ? 0.45 : 0.9,
+    metalness: glass ? 0.25 : 0.02
+  });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  body.position.y = h/2;
+  body.castShadow = true; body.receiveShadow = true;
+  g.add(body);
+
+  // 木构/砖房：石砌台基，落地感更实
+  if(styleKey !== 'rc'){
+    const plinth = new THREE.Mesh(new THREE.BoxGeometry(w+0.36, 0.34, d+0.36),
+      new THREE.MeshStandardMaterial({ color: styleKey==='wood'?0x6b6a63:0x7a756c, roughness:0.95 }));
+    plinth.position.y = 0.17; plinth.receiveShadow = true; g.add(plinth);
+  }
+
+  // 屋顶
+  const roofG = buildRoof(st.roof, w, d, h);
+  roofG.position.y = h;
+  g.add(roofG);
+
+  // 木构：门廊立柱，一眼看出是木房子
+  if(styleKey === 'wood'){
+    const colMat = new THREE.MeshStandardMaterial({ color:0x543a24, roughness:0.92 });
+    [-1, 1].forEach(s=>{
+      const c = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.11, h*0.9, 6), colMat);
+      c.position.set(s*w*0.42, h*0.45, d*0.52); c.castShadow = true; g.add(c);
+    });
+  }
+
+  g.position.set(x, 0, z);
+  g.userData.baseX = x; g.userData.baseZ = z;
+  houseGroup.add(g);
+  cityTowers.push({ g, body, mat, tex, cols, rows, litRatio, baseWall:wallColor, type:styleKey,
+                    h, w, willCollapse:false, fallP:0, dir:1, delay:0, collapsed:false });
+  return g;
+}
+
+// 整城重建：清掉旧楼群，按材质生成对应风格的城市
+function buildCity(matKey){
+  const st = CITY_STYLE[matKey] || CITY_STYLE.rc;
+  cityTowers.forEach(tw=>{
+    houseGroup.remove(tw.g);
+    tw.g.traverse(o=>{
+      if(o.geometry) o.geometry.dispose();
+      if(o.material){
+        (Array.isArray(o.material) ? o.material : [o.material]).forEach(m=>{
+          if(m.map) m.map.dispose();
+          m.dispose();
+        });
+      }
+    });
+  });
+  cityTowers.length = 0;
+
+  const rowsZ = matKey === 'wood' ? [-17.5, -24.5, -31.5, -38.5] : [-19, -27.5, -36];
+  const nCol   = matKey === 'wood' ? 8 : 9;
+  const spanX  = matKey === 'wood' ? 74 : 72;
+
+  rowsZ.forEach((bz)=>{
+    for(let ci=0; ci<nCol; ci++){
+      const x = -spanX/2 + (ci+0.5)*(spanX/nCol) + (Math.random()-0.5)*(spanX/nCol)*0.40;
+      const z = bz + (Math.random()-0.5)*3.0;
+      let w, d, h;
+      if(matKey === 'rc'){
+        const low = Math.random() < st.lowP;
+        w = low ? (6 + Math.random()*3.5) : (7 + Math.random()*5);
+        d = w*0.78 + Math.random()*2.0;
+        h = low ? (11 + Math.random()*7) : (21 + Math.random()*19);
+      } else if(matKey === 'brick'){
+        w = 5 + Math.random()*4;
+        d = w*0.75 + Math.random()*2.0;
+        h = 4.2 + Math.random()*9.0;      // 老城区 2~6 层
+      } else {
+        w = 5.0 + Math.random()*2.6;      // 木屋矮而宽，单层带阁楼
+        d = w*0.80 + Math.random()*1.4;
+        h = 2.6 + Math.random()*2.4;
+      }
+      buildTower(x, z, w, d, h, matKey);
+    }
+  });
+
+  // 地面与道路色调跟着城市风格走
+  if(farGround) farGround.material.color.setHex(st.ground);
+  // 古镇里不该挤满汽车
+  vehicles.forEach(v=>{ v.g.visible = (matKey !== 'wood'); });
+
+  cityStyleKey = matKey;
+  // 初始化阶段震动变量还未赋值（var 声明为 undefined），只有真正在震时才需要复位
+  if(cityShakeActive) resetCityEnv();
+}
+
+buildCity('rc');
+
+// --- 车辆 ---
+function buildCar(x, z, rotY, color){
+  const g = new THREE.Group();
+  const bodyMat = new THREE.MeshStandardMaterial({ color, roughness:0.3, metalness:0.55 });
+  const glassMat = new THREE.MeshStandardMaterial({ color:0x223440, roughness:0.08, metalness:0.9 });
+  const tireMat = new THREE.MeshStandardMaterial({ color:0x161616, roughness:0.95 });
+  const chromeMat = new THREE.MeshStandardMaterial({ color:0xb8c2cc, roughness:0.25, metalness:0.9 });
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.62, 4.0), bodyMat);
+  body.position.y = 0.68; body.castShadow = true; g.add(body);
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.66, 0.58, 2.0), glassMat);
+  cabin.position.set(0, 1.24, -0.1); cabin.castShadow = true; g.add(cabin);
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(1.68, 0.10, 1.9), bodyMat);
+  roof.position.set(0, 1.55, -0.1); g.add(roof);
+  const bumpF = new THREE.Mesh(new THREE.BoxGeometry(1.88, 0.22, 0.25), chromeMat);
+  bumpF.position.set(0, 0.52, 2.02); g.add(bumpF);
+  const bumpB = bumpF.clone(); bumpB.position.z = -2.02; g.add(bumpB);
+  // 前后灯
+  const lampMat = new THREE.MeshStandardMaterial({ color:0xfff3cf, emissive:0xffe9a8, emissiveIntensity:0.7 });
+  const tailMat = new THREE.MeshStandardMaterial({ color:0xd94a3a, emissive:0xa02010, emissiveIntensity:0.6 });
+  [-0.62, 0.62].forEach(px=>{
+    const l = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.16, 0.1), lampMat);
+    l.position.set(px, 0.78, 2.01); g.add(l);
+    const r = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.16, 0.1), tailMat);
+    r.position.set(px, 0.78, -2.01); g.add(r);
+  });
+  // 轮胎 + 轮毂
+  [[-0.94,1.35],[0.94,1.35],[-0.94,-1.35],[0.94,-1.35]].forEach(p=>{
+    const tire = new THREE.Mesh(new THREE.CylinderGeometry(0.36, 0.36, 0.26, 14), tireMat);
+    tire.rotation.z = Math.PI/2; tire.position.set(p[0], 0.36, p[1]);
+    tire.castShadow = true; g.add(tire);
+    const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.28, 10), chromeMat);
+    hub.rotation.z = Math.PI/2; hub.position.set(p[0], 0.36, p[1]); g.add(hub);
+  });
+  g.position.set(x, ROAD_Y, z);
+  g.rotation.y = rotY;
+  g.userData.baseY = ROAD_Y;
+  g.userData.baseX = x;
+  g.userData.baseRotY = rotY;
+  houseGroup.add(g);
+  vehicles.push({ g });
+  return g;
+}
+buildCar(-19, 7.0, 0, 0xd94f4f);
+buildCar(-6.5, 7.0, 0, 0xe8e2d8);
+buildCar(9, 7.0, 0, 0x3a4a5a);
+buildCar(20, 7.0, 0, 0x4f7fd9);
+buildCar(-13, -9.6, Math.PI, 0xd9a83c);
+buildCar(4, -9.6, Math.PI, 0x4a8a6a);
+
+// --- 行人 ---
+function buildPedestrian(x, z, rotY, shirtColor){
+  const g = new THREE.Group();
+  const skin = new THREE.MeshStandardMaterial({ color:0xe8b48a, roughness:0.65 });
+  const shirt = new THREE.MeshStandardMaterial({ color:shirtColor, roughness:0.85 });
+  const pants = new THREE.MeshStandardMaterial({ color:0x3a4450, roughness:0.9 });
+
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.155, 0.40, 4, 10), shirt);
+  torso.position.y = 1.02; torso.castShadow = true; g.add(torso);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.125, 12, 10), skin);
+  head.position.y = 1.44; head.castShadow = true; g.add(head);
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.128, 12, 10, 0, Math.PI*2, 0, Math.PI*0.55),
+    new THREE.MeshStandardMaterial({ color:0x2a241e, roughness:0.9 }));
+  hair.position.y = 1.455; g.add(hair);
+
+  const legGeo = new THREE.CapsuleGeometry(0.068, 0.52, 4, 8);
+  const legL = new THREE.Mesh(legGeo, pants); legL.position.set(-0.085, 0.40, 0); legL.castShadow = true; g.add(legL);
+  const legR = new THREE.Mesh(legGeo, pants); legR.position.set( 0.085, 0.40, 0); legR.castShadow = true; g.add(legR);
+  const armGeo = new THREE.CapsuleGeometry(0.052, 0.40, 4, 8);
+  const armL = new THREE.Mesh(armGeo, shirt); armL.position.set(-0.215, 1.00, 0); armL.castShadow = true; g.add(armL);
+  const armR = new THREE.Mesh(armGeo, shirt); armR.position.set( 0.215, 1.00, 0); armR.castShadow = true; g.add(armR);
+
+  g.position.set(x, ROAD_Y, z);
+  g.rotation.y = rotY;
+  g.userData.baseY = ROAD_Y;
+  g.userData.baseRotY = rotY;
+  houseGroup.add(g);
+  pedestrians.push({ g, torso, head, legL, legR, armL, armR });
+  return g;
+}
+buildPedestrian(-22, 4.6, 0.3, 0xd95f5f);
+buildPedestrian(-6, 4.9, -0.4, 0x4f7fd9);
+buildPedestrian(7, 4.6, 0.2, 0xe8d9a0);
+buildPedestrian(17, 4.9, -0.25, 0x6aa88a);
+buildPedestrian(-1.5, 4.6, 1.2, 0xa06ac0);
+buildPedestrian(24, -7.0, 2.9, 0xe89a4a);
+
+// --- 街道细节 ---
+function buildStreetDetails(){
+  const lineMat = new THREE.MeshStandardMaterial({ color:0xd8d2c0, roughness:0.9 });
+  // 中心虚线
+  for(let x=-23; x<=23; x+=3.2){
+    const dash = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.02, 0.16), lineMat);
+    dash.position.set(x, ROAD_Y+0.01, 9.8);
+    houseGroup.add(dash);
+  }
+  // 路缘石
+  const curbMat = new THREE.MeshStandardMaterial({ color:0x8a929c, roughness:0.9 });
+  [-1,1].forEach(s=>{
+    const curb = new THREE.Mesh(new THREE.BoxGeometry(48, 0.18, 0.22), curbMat);
+    curb.position.set(0, ROAD_Y+0.09, s*10.9); houseGroup.add(curb);
+  });
+  // 消防栓
+  function hydrant(x, z){
+    const g = new THREE.Group();
+    const m = new THREE.MeshStandardMaterial({ color:0xd94a3a, roughness:0.7 });
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.15, 0.55, 8), m); b.position.y = 0.28; b.castShadow=true; g.add(b);
+    const top = new THREE.Mesh(new THREE.SphereGeometry(0.14, 8, 6), m); top.position.y = 0.58; g.add(top);
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.34, 6), m);
+    cap.rotation.z = Math.PI/2; cap.position.y = 0.42; g.add(cap);
+    g.position.set(x, ROAD_Y, z); houseGroup.add(g);
+  }
+  hydrant(-17, 7.1); hydrant(9, 7.1);
+  // 垃圾桶
+  function bin(x, z){
+    const g = new THREE.Group();
+    const m = new THREE.MeshStandardMaterial({ color:0x3e5a48, roughness:0.85 });
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.19, 0.62, 10), m);
+    body.position.y = 0.31; body.castShadow = true; g.add(body);
+    const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.08, 10),
+      new THREE.MeshStandardMaterial({ color:0x2e4438, roughness:0.85 }));
+    lid.position.y = 0.66; g.add(lid);
+    g.position.set(x, ROAD_Y, z); houseGroup.add(g);
+  }
+  bin(-20, 7.1); bin(4.5, 7.1); bin(22, -7.1);
+  // 广告牌（canvas 文字）
+  function billboardTex(text, bg){
+    const cv = document.createElement('canvas'); cv.width = 256; cv.height = 128;
+    const cx = cv.getContext('2d');
+    cx.fillStyle = bg; cx.fillRect(0, 0, 256, 128);
+    cx.strokeStyle = 'rgba(255,255,255,0.7)'; cx.lineWidth = 6; cx.strokeRect(8, 8, 240, 112);
+    cx.fillStyle = '#fff'; cx.font = 'bold 44px "Microsoft YaHei", sans-serif';
+    cx.textAlign = 'center'; cx.textBaseline = 'middle';
+    cx.fillText(text, 128, 68);
+    const t = new THREE.CanvasTexture(cv);
+    if(THREE.SRGBColorSpace) t.colorSpace = THREE.SRGBColorSpace;
+    return t;
+  }
+  function billboard(x, z, rotY, text, bg){
+    const g = new THREE.Group();
+    const poleMat = new THREE.MeshStandardMaterial({ color:0x55606a, roughness:0.7, metalness:0.5 });
+    [-1,1].forEach(s=>{
+      const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 3.0, 8), poleMat);
+      pole.position.set(s*1.4, 1.5, 0); pole.castShadow = true; g.add(pole);
+    });
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(3.4, 1.7, 0.14),
+      new THREE.MeshStandardMaterial({ map:billboardTex(text, bg), roughness:0.8 }));
+    panel.position.y = 3.4; panel.castShadow = true; g.add(panel);
+    g.position.set(x, ROAD_Y, z); g.rotation.y = rotY;
+    houseGroup.add(g);
+  }
+  billboard(-27, -8, 0.35, '防灾减灾', '#c0392b');
+  billboard(27, -8, -0.35, '城市安全', '#2471a3');
+}
+buildStreetDetails();
+
+
+// 楼层破坏等级：0 完好 / 1 轻微 / 2 中等 / 3 严重 / 4 压溃
+const FLOOR_DMG = ['完好','轻微','中等','严重','压溃'];
+
+const stateInfo = {
+  rc:{ name:'钢筋混凝土', short:'钢混框架', color:'#4fa3d9', crackTh:7, collapseTh:9, floors:7,
+    data:{ collapseProb:[0,0,0,0,0,0,0,0,0.0515,0.3173,0.55,0.8], source:'威宁县易损性矩阵（地震科学进展2026）+ 国标' },
+    explain:{
+      intro:'钢筋混凝土框架：里面是钢筋当"骨架"，外面包着混凝土，能弯一下再弹回来，是三种房子里最结实、最抗震的。',
+      shake:'整栋楼像被人从底下推着左右晃，钢筋把晃动的力量"扛住"了，楼能弯但不会散架。',
+      crack:'柱子上下两头、还有柱子和横梁接头的地方，先出现细细的裂缝，墙皮开始往下掉——这是框架楼最早出现的伤。',
+      collapse:'一楼的柱子被压弯了，钢筋从混凝土里鼓出来，一楼先软下去、塌进去，上面几层跟着往下坐——就像人腿软了蹲下去一样。'
+    },
+    floorNote:'框架楼是"底下软、上面硬"：一楼的柱子扛着整栋楼的重量，最容易先坏；上面几层反而好好的。所以高层不是越往上越危险，先垮的往往是一楼。'
+  },
+  brick:{ name:'砖房', short:'砖房', color:'#d9703f', crackTh:5.5, collapseTh:7.5, floors:4,
+    data:{ collapseProb:[0,0,0,0,0,0,0.0052,0.0244,0.2467,0.4795,0.75,0.95], source:'威宁县易损性矩阵（地震科学进展2026）' },
+    explain:{
+      intro:'砖房：砖头靠水泥灰浆粘在一起，就像"码起来的积木"，能压但不能拉，一裂就碎，很脆。',
+      shake:'墙来回晃，砖缝之间来回磨，表面看着没事，其实水泥灰已经松了。',
+      crack:'墙上出现斜着的"X"形裂缝，砖头开始松动，碎砖块和灰渣哗哗往下掉。',
+      collapse:'一楼的承重墙被剪断、压碎了，上面几层"咕咚"一下整体坐下去——砖墙里没有钢筋拉住，碎了就散成一堆。'
+    },
+    floorNote:'砖房最怕"一楼承重墙断"：一楼既要扛着上面所有楼的重量，又要扛地震晃，一旦压碎了，上面几层会整个坐下去。同样震级下，砖房比钢混楼严重两级左右。'
+  },
+  wood:{ name:'木房子', short:'木房', color:'#c9a05a', crackTh:6, collapseTh:8.5, floors:2,
+    data:{ collapseProb:[0,0,0,0,0,0,0,0,0.657,0.82,0.95,1.0], source:'泸定6.8级地震统计（地震研究2025）' },
+    explain:{
+      intro:'木房子：木头本身很轻、很有韧性，能弯，但木头和木头连接的地方（榫卯、钉子）是最弱的环节。',
+      shake:'整栋房子软乎乎地来回晃，晃得幅度大却不容易断——木头本身很结实、有弹性。',
+      crack:'榫头从卯眼里往外滑出来、钉子被拔松，墙板和柱子之间裂开一条缝。',
+      collapse:'连接的地方一个接一个脱开，屋顶和墙板先散架，整个木架子歪着倒下来——木头很少被折断，是"散架"而不是"折断"。'
+    },
+    floorNote:'木房子靠"关节"连起来：木头本身很韧，但榫卯、铁钉在来回晃的时候会松掉。屋顶最轻，最先散，二楼往往比一楼先失去支撑。'
+  }
+};
+
+// 各结构在各级烈度下的楼层破坏分布（index 0 = 一层，末位 = 顶层）
+const FLOOR_TABLE = {
+  rc:[
+    [0,0,0,0,0,0,0],   // Ⅵ
+    [1,1,0,0,0,0,0],   // Ⅶ
+    [2,2,1,1,0,0,0],   // Ⅷ
+    [3,2,2,1,1,0,0],   // Ⅸ
+    [4,3,2,2,1,1,0],   // Ⅹ
+    [4,4,3,2,2,1,1],   // Ⅺ
+    [4,4,4,3,3,2,2]    // Ⅻ
+  ],
+  brick:[
+    [1,0,0,0],
+    [2,1,1,0],
+    [3,2,2,1],
+    [4,3,3,2],
+    [4,4,3,3],
+    [4,4,4,4],
+    [4,4,4,4]
+  ],
+  wood:[
+    [0,0],
+    [1,1],
+    [2,1],
+    [3,2],
+    [4,3],
+    [4,4],
+    [4,4]
+  ]
+};
+function floorDamage(k, mag){
+  const i = Math.min(6, Math.max(0, mag - 6));
+  return FLOOR_TABLE[k][i].slice();
+}
+// 按结构 + 烈度生成一句"人话"结论
+function floorVerdict(k, mag){
+  const d = floorDamage(k, mag);
+  const mx = Math.max.apply(null, d);
+  if(mx === 0) return '这一烈度下整栋基本完好，只是轻微摇晃，墙体没有可见裂缝。';
+  if(k === 'rc'){
+    if(mx >= 4) return '底层柱子被压弯、钢筋外鼓，1~2 层先塌，3 层以上还立着——这就是框架楼典型的<b>「底层薄弱层」倒塌</b>。';
+    if(mx === 3) return '1~2 层柱端开裂、墙皮成片脱落，上层只是轻晃。框架把地震力分摊到整栋楼，<b>越往上反而越稳</b>。';
+    return '只有底层柱端出现细裂缝、局部掉皮，上层几乎没伤——框架楼靠"能弯"把力量卸掉了。';
+  }
+  if(k === 'brick'){
+    if(mx >= 4) return '底层承重墙被剪断、压溃，上面几层整体往下坐；砖墙没有钢筋拉结，<b>低层先垮、上层跟着塌</b>。';
+    return '墙上出现斜向"X"形剪切裂缝，底层最重、上层稍轻；砖砌体脆，裂缝一旦贯通就整片掉。';
+  }
+  if(k === 'wood'){
+    if(mx >= 4) return '榫卯、铁钉大量脱开，屋顶和墙板先散，木架子随后歪倒——木料本身很少被折断。';
+    return '节点松动、墙板开裂，木架子整体歪斜但还没散；木结构轻、能弯，所以比砖房耐震。';
+  }
+  return '';
+}
+
+function makeRockTexture(baseColor, spots){
+  return makeCanvasTexture((ctx,w,h)=>{
+    ctx.fillStyle=baseColor; ctx.fillRect(0,0,w,h);
+    for(let i=0;i<(spots||200);i++){ ctx.fillStyle=`rgba(0,0,0,${Math.random()*0.18})`; ctx.fillRect(Math.random()*w,Math.random()*h,4,4); }
+    for(let i=0;i<40;i++){ ctx.fillStyle=`rgba(255,255,255,${Math.random()*0.06})`; ctx.fillRect(Math.random()*w,Math.random()*h,6,6); }
+  });
+}
+
+// ===================== 山体场景：地形 / 树林 / 河流 / 滑坡 =====================
+const HILL_X = 90;
+const HILL_W = 78, HILL_D = 70;
+const RIVER_Z = 17, RIVER_Y = 0.95;
+
+let hillTerrainGeo = null, hillBaseColors = null, hillScarT = null;
+let riverMesh = null, riverBase = null;
+let hillTrees = [];
+let hillDetachList = [], hillDetachPtr = 0;
+let dustParticles = [], splashRings = [];
+let dustTex = null, dustTimer = 0;
+let hillScarFront = 0;
+const HILL_SCAR_COLOR = new THREE.Color(0x6a5946);
+
+// 地形高度（局部坐标）：z 越小越靠山脊，越大越靠山脚；河谷位于 RIVER_Z
+function hillHeight(x, z){
+  const t = Math.min(1, Math.max(0, (z + 34) / 46));
+  let h = Math.pow(Math.max(0, 1 - t), 1.55) * 34;                       // 主坡面
+  h += 17 * Math.exp(-(((x+13)*(x+13))/78 + ((z+12)*(z+12))/110));       // 主峰
+  h += 12.5 * Math.exp(-(((x-15)*(x-15))/66 + ((z+18)*(z+18))/95));      // 次峰
+  h += 3.2 * Math.sin(x*0.13 + 0.7) * Math.exp(-(((z+1)*(z+1))/800));    // 山脊起伏
+  h += 1.5*Math.sin(x*0.31+0.4)*Math.cos(z*0.27)
+     + 0.8*Math.sin(x*0.74+1.1)*Math.sin(z*0.6+0.3);                     // 细碎起伏
+  const cut = Math.exp(-(((z-RIVER_Z)*(z-RIVER_Z))/26));                 // 河道下切
+  h *= (1 - 0.96*cut);
+  // 四周收边，避免出现悬崖断面
+  const fx  = Math.min(1, (HILL_W/2 - Math.abs(x)) / 15);
+  const fzb = Math.min(1, (HILL_D/2 + z) / 15);
+  const fzf = Math.min(1, (HILL_D/2 - z) / 13);
+  let f = Math.max(0, Math.min(fx, fzb, fzf));
+  f = f*f*(3-2*f);
+  return h * f - (1 - f) * 0.5;   // 边缘略下沉，始终高于地坪顶面，避免共面闪烁
+}
+
+// 坡面梯度（用于碎屑下滑方向）
+function hillSlope(x, z){
+  const e = 1.0;
+  const gx = (hillHeight(x+e, z) - hillHeight(x-e, z)) / (2*e);
+  const gz = (hillHeight(x, z+e) - hillHeight(x, z-e)) / (2*e);
+  return { gx, gz, mag: Math.hypot(gx, gz) };
+}
+
+// 山上一棵树（kind 0=针叶 1=阔叶）
+const HILL_TRUNK_MAT = new THREE.MeshStandardMaterial({ color:0x5a4632, roughness:0.95 });
+const HILL_LEAF_A = new THREE.MeshStandardMaterial({ color:0x3d6a33, roughness:0.92 });
+const HILL_LEAF_B = new THREE.MeshStandardMaterial({ color:0x557c3c, roughness:0.92 });
+
+function makeHillTree(x, z, s, kind){
+  const g = new THREE.Group();
+  const h = hillHeight(x, z);
+  g.position.set(x, h - 0.06, z);
+  const trunkH = (kind === 0 ? 1.9 : 1.5) * s;
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.10*s, 0.17*s, trunkH, 6), HILL_TRUNK_MAT);
+  trunk.position.y = trunkH/2; trunk.castShadow = true; g.add(trunk);
+  if(kind === 0){
+    for(let i=0;i<3;i++){
+      const r = (1.05 - i*0.24)*s, ch = 1.7*s;
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(r, ch, 8), i%2 ? HILL_LEAF_B : HILL_LEAF_A);
+      cone.position.y = trunkH*0.5 + i*0.82*s + ch*0.38;
+      cone.castShadow = true; g.add(cone);
+    }
+  } else {
+    for(let i=0;i<3;i++){
+      const r = (0.9 - i*0.13)*s;
+      const ball = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 0), i%2 ? HILL_LEAF_B : HILL_LEAF_A);
+      ball.position.set((Math.random()-0.5)*0.45*s, trunkH + 0.45*s + i*0.36*s, (Math.random()-0.5)*0.45*s);
+      ball.castShadow = true; g.add(ball);
+    }
+  }
+  g.userData = { hx:x, hz:z, s, kind, phase:Math.random()*6.28, fell:false };
+  return g;
+}
+
+// 山脚小农舍（提供尺度参照）
+function makeFarmHouse(x, z, rotY){
+  const g = new THREE.Group();
+  const wall = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.7, 2.2),
+    new THREE.MeshStandardMaterial({ color:0xc9c0ab, roughness:0.9 }));
+  wall.position.y = 0.85; wall.castShadow = true; wall.receiveShadow = true; g.add(wall);
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(2.15, 1.15, 4),
+    new THREE.MeshStandardMaterial({ color:0x8a4a3a, roughness:0.9 }));
+  roof.position.y = 2.2; roof.rotation.y = Math.PI/4; roof.castShadow = true; g.add(roof);
+  const door = new THREE.Mesh(new THREE.BoxGeometry(0.55, 1.0, 0.06),
+    new THREE.MeshStandardMaterial({ color:0x5a3d24, roughness:0.9 }));
+  door.position.set(0, 0.5, 1.12); g.add(door);
+  g.position.set(x, Math.max(0, hillHeight(x,z)), z);
+  g.rotation.y = rotY;
+  return g;
+}
+
+function buildHill() {
+  const g = new THREE.Group();
+  g.userData = { type:'hill', pieces:[] };
+
+  // —— 山谷平原（承托地形，避免边界悬空）——
+  const plain = new THREE.Mesh(new THREE.BoxGeometry(200, 0.8, 190),
+    new THREE.MeshStandardMaterial({ color:0x46612f, roughness:1 }));
+  plain.position.set(4, -1.0, -6);
+  plain.receiveShadow = true;
+  g.add(plain);
+
+  // —— 山体地形（顶点位移 + 顶点色）——
+  const geo = new THREE.PlaneGeometry(HILL_W, HILL_D, 108, 96);
+  geo.rotateX(-Math.PI/2);
+  const pos = geo.attributes.position;
+  for(let i=0;i<pos.count;i++) pos.setY(i, hillHeight(pos.getX(i), pos.getZ(i)));
+  geo.computeVertexNormals();
+
+  const colors = new Float32Array(pos.count*3);
+  const nrm = geo.attributes.normal;
+  const cGrass = new THREE.Color(0x4d6634), cGrass2 = new THREE.Color(0x647f45);
+  const cDirt  = new THREE.Color(0x72603f), cRock  = new THREE.Color(0x6b665e);
+  const cHigh  = new THREE.Color(0x7f7d78), cSand  = new THREE.Color(0x948868);
+  const tmp = new THREE.Color();
+  hillScarT = new Float32Array(pos.count).fill(9);
+  for(let i=0;i<pos.count;i++){
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const steep = 1 - nrm.getY(i);
+    tmp.copy(cGrass).lerp(cGrass2, Math.sin(x*0.8)*0.5 + 0.5);
+    if(y > 4)  tmp.lerp(cDirt, Math.min(1,(y-4)/13)*0.45);
+    if(y > 14) tmp.lerp(cRock, Math.min(1,(y-14)/11));
+    if(y > 26) tmp.lerp(cHigh, Math.min(1,(y-26)/7));
+    if(steep > 0.42) tmp.lerp(cRock, Math.min(1,(steep-0.42)/0.35)*0.8);
+    if(y < 2.2 && Math.abs(z-RIVER_Z) < 7.5) tmp.lerp(cSand, 0.9);
+    colors[i*3] = tmp.r; colors[i*3+1] = tmp.g; colors[i*3+2] = tmp.b;
+    // 滑坡后壁露出范围：越靠坡脚/滑源中心越早露出
+    const rx = (x+2)/22, rz = (z-1)/17;
+    const dd = Math.hypot(rx, rz);
+    if(y > 2.2 && y < 23 && dd < 0.98) hillScarT[i] = Math.min(1, 0.28 + (12-z)/30*0.55 + dd*0.4);
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  hillBaseColors = Float32Array.from(colors);
+  const terrain = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors:true, roughness:0.97 }));
+  terrain.castShadow = true; terrain.receiveShadow = true;
+  g.add(terrain);
+  hillTerrainGeo = geo;
+  g.userData.terrain = terrain;
+
+  // —— 坡面松散层（滑坡体：岩块 + 土体颗粒）——
+  const slopeGroup = new THREE.Group();
+  g.add(slopeGroup);
+  g.userData.slopeGroup = slopeGroup;
+
+    const rockTex = makeRockTexture('#7a6e58',220); rockTex.colorSpace = THREE.SRGBColorSpace;
+  const soilTex = makeRockTexture('#695b43',160); soilTex.colorSpace = THREE.SRGBColorSpace;
+  const rockMat = new THREE.MeshStandardMaterial({ map:rockTex, roughness:0.95 });
+  const soilMat = new THREE.MeshStandardMaterial({ map:soilTex, roughness:0.98 });
+
+  const rocks = [];
+  let attempts = 0;
+  while(rocks.length < 74 && attempts < 9000){
+    attempts++;
+    const x = (Math.random()-0.5)*66, z = -28 + Math.random()*42;
+    const h = hillHeight(x, z);
+    if(h < 2.5 || h > 16) continue;
+    if(Math.abs(z - RIVER_Z) < 7.5) continue;
+    if(hillSlope(x, z).mag < 0.14) continue;
+    const r = 0.40 + Math.random()*1.15;
+    const m = new THREE.Mesh(new THREE.DodecahedronGeometry(r, 0), rockMat);
+    m.position.set(x, h + r*0.35, z);
+    m.rotation.set(Math.random()*3, Math.random()*3, Math.random()*3);
+    m.castShadow = true; m.receiveShadow = true;
+    slopeGroup.add(m);
+    m.userData = { ox:x, oy:h+r*0.35, oz:z, r, isRock:true, detached:false,
+                   sIdx:Math.max(0, Math.min(1, (12-z)/38)) };
+    rocks.push(m);
+    g.userData.pieces.push(m);
+  }
+  g.userData.rocks = rocks;
+
+  const soilParticles = [];
+  attempts = 0;
+  while(soilParticles.length < 220 && attempts < 12000){
+    attempts++;
+    const x = (Math.random()-0.5)*68, z = -29 + Math.random()*45;
+    const h = hillHeight(x, z);
+    if(h < 1.2 || h > 23) continue;
+    if(Math.abs(z - RIVER_Z) < 6.5) continue;
+    if(hillSlope(x, z).mag < 0.10) continue;
+    const r = 0.18 + Math.random()*0.42;
+    const m = new THREE.Mesh(new THREE.DodecahedronGeometry(r, 0), soilMat);
+    m.position.set(x, h + r*0.32, z);
+    m.rotation.set(Math.random()*3, Math.random()*3, Math.random()*3);
+    m.castShadow = false; m.receiveShadow = true;
+    slopeGroup.add(m);
+    m.userData = { ox:x, oy:h+r*0.32, oz:z, r, isSoil:true, detached:false,
+                   sIdx:Math.max(0, Math.min(1, (12-z)/38)) };
+    soilParticles.push(m);
+    g.userData.pieces.push(m);
+  }
+  g.userData.soilParticles = soilParticles;
+
+  // —— 树木（坡面 + 河岸林带）——
+  hillTrees = [];
+  const treePos = [];
+  attempts = 0;
+  while(treePos.length < 72 && attempts < 9000){
+    attempts++;
+    const x = (Math.random()-0.5)*68, z = -26 + Math.random()*48;
+    const h = hillHeight(x, z);
+    if(h < 1.3 || h > 21.5) continue;
+    if(Math.abs(z - RIVER_Z) < 5.6) continue;
+    if(hillSlope(x, z).mag > 0.9) continue;
+    let ok = true;
+    for(const p of treePos){ if(Math.hypot(p.x-x, p.z-z) < 2.9){ ok = false; break; } }
+    if(!ok) continue;
+    treePos.push({ x, z });
+  }
+  // 河岸两侧补一排阔叶树，形成林带
+  for(let i=0;i<14;i++){
+    const x = -34 + i*5 + (Math.random()-0.5)*2.2;
+    const side = (i%2 ? 1 : -1);
+    const z = RIVER_Z + side*(7.2 + Math.random()*1.6);
+    treePos.push({ x, z });
+  }
+  treePos.forEach(p=>{
+    const s = 0.85 + Math.random()*0.75;
+    const kind = Math.random() < 0.45 ? 1 : 0;
+    const tr = makeHillTree(p.x, p.z, s, kind);
+    tr.userData.sIdx = Math.max(0, Math.min(1, (12 - p.z)/38));
+    g.add(tr);
+    hillTrees.push(tr);
+  });
+
+  // —— 河流（会随地震波起伏）——
+  const rGeo = new THREE.PlaneGeometry(HILL_W-2, 11.5, 92, 14);
+  rGeo.rotateX(-Math.PI/2);
+  rGeo.translate(0, RIVER_Y, RIVER_Z);
+  const rp = rGeo.attributes.position;
+  riverBase = new Float32Array(rp.count*3);
+  for(let i=0;i<rp.count;i++){
+    riverBase[i*3] = rp.getX(i);
+    riverBase[i*3+1] = rp.getY(i);
+    riverBase[i*3+2] = rp.getZ(i);
+  }
+  const waterMat = new THREE.MeshStandardMaterial({
+    color:0x4689b0, roughness:0.10, metalness:0.42, transparent:true, opacity:0.86
+  });
+  riverMesh = new THREE.Mesh(rGeo, waterMat);
+  riverMesh.receiveShadow = false;
+  g.add(riverMesh);
+  g.userData.river = riverMesh;
+
+  // 河岸乱石
+  for(let i=0;i<30;i++){
+    const x = (Math.random()-0.5)*(HILL_W-10);
+    const side = Math.random() < 0.5 ? -1 : 1;
+    const z = RIVER_Z + side*(5.8 + Math.random()*1.8);
+    const h = Math.max(0, hillHeight(x, z));
+    const r = 0.24 + Math.random()*0.5;
+    const m = new THREE.Mesh(new THREE.DodecahedronGeometry(r, 0), rockMat);
+    m.position.set(x, h + r*0.4, z);
+    m.rotation.set(Math.random()*3, Math.random()*3, Math.random()*3);
+    m.castShadow = true;
+    g.add(m);
+  }
+
+  // 山脚农舍（尺度参照 + 受威胁对象）
+  [[-16, 25.5, 0.25], [10, 26.5, -0.35], [26, 24.5, 0.6]].forEach(p=>{
+    g.add(makeFarmHouse(p[0], p[1], p[2]));
+  });
+
+  // —— 远山背景（拉开景深，避免山体像孤岛）——
+  const farMat = new THREE.MeshStandardMaterial({ color:0x44543c, roughness:1, flatShading:true });
+  const farMat2 = new THREE.MeshStandardMaterial({ color:0x374734, roughness:1, flatShading:true });
+  [[-58,-86,26,40],[-24,-96,32,52],[6,-92,24,36],[40,-98,30,46],[70,-88,22,34],[-88,-70,20,30],[96,-72,24,38]]
+  .forEach((p,i)=>{
+    const m = new THREE.Mesh(new THREE.ConeGeometry(p[2], p[3], 7), i%2 ? farMat : farMat2);
+    m.position.set(p[0], p[3]*0.34 - 3, p[1]);
+    m.rotation.y = Math.random()*3;
+    g.add(m);
+  });
+
+  return g;
+}
+
+let hillBuilding = null;
+let selectedMat = 'rc';
+let selectedMag = 8;
+let currentScene = 'house';
+
+const statusBar = document.getElementById('statusBar');
+const bubble = document.getElementById('bubble');
+const bTitle = document.getElementById('bTitle');
+const bBody = document.getElementById('bBody');
+const bCause = document.getElementById('bCause');
+let bubblePhase = -1;
+let bubbleTarget = null;
+let slideSummary = '';        // 本次滑坡规模摘要，供各阶段气泡复用
+let bubbleLift = 4.2;      // 气泡相对目标物顶部的抬升高度（米），按场景调整
+
+// 人体场景：按当前状态给出伤亡等级配色（绿/黄/橙/红）
+function updateInjuryChip(title){
+  const el = document.getElementById('bInjury');
+  if(!el) return;
+  if(currentScene !== 'body'){ el.style.display = 'none'; return; }
+  let txt, col, bg;
+  if(/摔倒|撑不住|站不住|被甩/.test(title)){ txt = '重伤 — 可能骨折、头部着地'; col = '#ff7b6b'; bg = 'rgba(226,91,91,0.18)'; }
+  else if(/踉跄|站不稳/.test(title)){ txt = '轻伤 — 扭伤、擦伤'; col = '#ffb26b'; bg = 'rgba(232,161,60,0.16)'; }
+  else if(/轻轻晃|站住了/.test(title)){ txt = '安全 — 重心压得住'; col = '#7fd88a'; bg = 'rgba(92,200,106,0.15)'; }
+  else { txt = '注意 — 有摔倒风险'; col = '#e2d45a'; bg = 'rgba(216,201,74,0.15)'; }
+  el.textContent = '伤亡等级：' + txt;
+  el.style.display = 'inline-block';
+  el.style.color = col; el.style.background = bg; el.style.borderColor = col;
+}
+
+function showBubble(target, title, body, cause){
+  bubbleTarget = target;
+  bTitle.textContent = title;
+  bBody.innerHTML = body;
+  bCause.textContent = cause;
+  updateInjuryChip(title);
+  bubble.style.opacity = '1';
+}
+function hideBubble(){ bubbleTarget=null; bubble.style.opacity='0'; }
+function magLabel(m){ return m<=7?'较小震级':(m<=9?'中等震级':'强震'); }
+
+/* ---------------- 破坏过程时间轴 ---------------- */
+function tlReset(label, src){
+  document.getElementById('tlList').innerHTML = '';
+  document.getElementById('tlScene').textContent = label || '';
+  document.getElementById('tlSrc').innerHTML = src || '';
+  document.getElementById('timeline').classList.add('on');
+  layoutSidePanels();
+}
+function tlHide(){
+  document.getElementById('timeline').classList.remove('on');
+  const st = document.getElementById('sourceTag');
+  if(st) st.style.display = '';
+}
+function tlPush(t, text, cls){
+  const list = document.getElementById('tlList');
+  if(!list) return;
+  const it = document.createElement('div');
+  it.className = 'tl-item' + (cls ? ' ' + cls : '');
+  it.innerHTML = '<span class="tl-t">' + t + '</span><span class="tl-x">' + text + '</span>';
+  list.appendChild(it);
+  // 按实际高度裁剪：字号放大后仍保证最新一条完整可见
+  while(list.children.length > 4) list.removeChild(list.firstChild);
+  let guard = 0;
+  while(list.scrollHeight > list.clientHeight + 26 && list.children.length > 3 && guard++ < 6){
+    list.removeChild(list.firstChild);
+  }
+}
+
+/* ---------------- 楼层破坏分布面板 ---------------- */
+function renderFloorPanel(){
+  const panel = document.getElementById('floorPanel');
+  if(!panel) return;
+  if(currentScene !== 'house'){
+    panel.classList.remove('on');
+    document.body.classList.remove('floor-on');
+    return;
+  }
+  panel.classList.add('on');
+  document.body.classList.add('floor-on');
+  document.getElementById('fpMag').textContent = ROMAN[selectedMag-1] + ' 度';
+
+  const CELL = 17, GAP = 2;
+  const keys = ['rc','brick','wood'];
+  document.getElementById('fpCols').innerHTML = keys.map(k=>{
+    const si = stateInfo[k];
+    const d = floorDamage(k, selectedMag);
+    let cells = '';
+    for(let f = d.length - 1; f >= 0; f--){
+      const lv = d[f];
+      cells += '<div class="fp-cell d' + lv + '" style="height:' + CELL + 'px">'
+             + '<span>' + (f+1) + 'F</span><span>' + FLOOR_DMG[lv] + '</span></div>';
+    }
+    return '<div class="fp-col' + (k === selectedMat ? ' sel' : '') + '">' + cells
+         + '<div class="fp-cap">' + si.short + ' · ' + si.floors + '层</div></div>';
+  }).join('');
+
+  // 三种结构在同一烈度下的平均破坏等级，用于横向对比
+  const avg = k=>{
+    const d = floorDamage(k, selectedMag);
+    return d.reduce((a,b)=>a+b,0) / d.length;
+  };
+  const cmp = '对比：同一烈度下，砖砌体平均 ' + avg('brick').toFixed(1) + ' 级、钢混 ' + avg('rc').toFixed(1)
+            + ' 级、木结构 ' + avg('wood').toFixed(1) + ' 级。';
+  document.getElementById('fpNote').innerHTML =
+    '<b>' + stateInfo[selectedMat].short + ' · ' + ROMAN[selectedMag-1] + ' 度：</b>'
+    + floorVerdict(selectedMat, selectedMag)
+    + '<br><span class="hi">' + cmp + '</span>';
+}
+
+/* ---------------- 选中房屋的地面指示环 ---------------- */
+let matRing = null;
+function buildMatRing(){
+  const geo = new THREE.RingGeometry(6.2, 7.0, 48);
+  const mat = new THREE.MeshBasicMaterial({ color:0xe8a13c, transparent:true, opacity:0.72, side:THREE.DoubleSide });
+  matRing = new THREE.Mesh(geo, mat);
+  matRing.rotation.x = -Math.PI/2;
+  matRing.position.y = 0.08;
+  houseGroup.add(matRing);
+  moveMatRing();
+}
+function moveMatRing(){
+  if(!matRing) return;
+  const b = buildings.find(x=>x.userData.type === selectedMat);
+  if(b) matRing.position.x = b.userData.baseX;
+}
+
+function buildMaterialRow(){
+  const row = document.getElementById('materialRow');
+  row.innerHTML = '';
+  const mats = [
+    { k:'rc', name:'钢筋混凝土', sub:'延性 · 最耐震' },
+    { k:'brick', name:'砖砌体', sub:'脆性 · 易倒塌' },
+    { k:'wood', name:'木结构', sub:'柔性 · 节点弱' }
+  ];
+  mats.forEach(m=>{
+    const btn = document.createElement('button');
+    btn.className = 'mat-btn' + (m.k===selectedMat?' active':'');
+    btn.dataset.mat = m.k;
+    btn.innerHTML = `<div class="m-name">${m.name}</div><div class="m-sub">${m.sub}</div>`;
+    btn.addEventListener('click', ()=>{
+      selectedMat = m.k;
+      buildMaterialRow();
+      statusBar.innerHTML = `已选择 <b>${stateInfo[m.k].name}</b>，请选择震级后触发地震`;
+      document.getElementById('sourceTag').innerHTML = `数据来源：<b>${stateInfo[m.k].data.source}</b>`;
+      buildCity(m.k);         // 整座城市重建为该材质对应的风格
+      moveMatRing();          // 指示环移到所选房屋
+      renderFloorPanel();     // 楼层破坏分布同步刷新
+    });
+    row.appendChild(btn);
+  });
+}
+
+// ============ 人体震害场景（主动平衡布娃娃 + 倒立摆物理） ============
+// 物理模型：
+//  1) 人体站立 = 倒立摆。地震水平加速度使重心偏离竖直，重力提供恢复力矩。
+//  2) 人通过"手臂反方向伸展 + 躯干微调"主动维持平衡（类似走钢丝者持平衡杆，
+//     手臂甩动产生的角动量反作用把重心拉回支撑面中心）。
+//  3) 震级越强 → 地震加速度越大 → 超过人体平衡能力 → 倒地越快；
+//     震级越小 → 重心偏移小 → 手臂补偿充分 → 能稳住自己。
+// 精细骨骼（FK 正向运动学）：
+//   骨盆(root) → 腰椎 → 胸椎 → 颈 → 头
+//   胸椎两侧 → 肩 → 上臂 → 肘 → 前臂 → 腕 → 手
+//   骨盆两侧 → 髋 → 大腿 → 膝 → 小腿 → 踝 → 脚
+let bodyBuilding = null;
+let bodyRoot = null;
+let bodyShaking = false;
+let bodyShakeStart = 0;
+let bodyShakeMag = 0;
+let bodyShakeDur = 0;
+
+let bodyJoints = [];       // 所有可动关节 { g, base, amp, speed, min, max, axis }
+let bodyMeshes = [];       // 所有肢体 mesh（用于重置）
+
+// 关键关节引用，供平衡策略与倒地动画定向控制
+let BJ = {};
+
+// 人体模拟状态（倒立摆 + 平衡）
+let bodySim = {
+  leanX: 0, leanZ: 0,       // 身体倾角（前后 / 左右，弧度）
+  velX: 0, velZ: 0,         // 倾角速度
+  fallen: false,
+  fallDirX: 1, fallDirZ: 0, // 倒地方向（单位向量水平分量）
+  fallP: 0,                 // 倒地进度 0~1
+  armLean: 0                // 手臂平衡角度（当前）
+};
+
+const BODY_PELVIS_H = 0.94;   // 骨盆中心高度（脚底到髋）
+
+function buildBodyRagdoll(){
+  const g = new THREE.Group();
+  g.userData = { type:'body' };
+  const skinMat = new THREE.MeshStandardMaterial({ color:0xe8b48a, roughness:0.6 });
+  const clothMat = new THREE.MeshStandardMaterial({ color:0x4a6b8a, roughness:0.8 });
+  const pantMat = new THREE.MeshStandardMaterial({ color:0x3a4a3a, roughness:0.9 });
+  const shoeMat = new THREE.MeshStandardMaterial({ color:0x2a2a2a, roughness:0.85 });
+  const headMat = new THREE.MeshStandardMaterial({ color:0xe8b48a, roughness:0.55 });
+  const hairMat = new THREE.MeshStandardMaterial({ color:0x2a2a2a, roughness:0.8 });
+
+  // 大范围地面（保证画面下方不会出现黑空）
+  const bigFloor = new THREE.Mesh(
+    new THREE.CircleGeometry(46, 48),
+    new THREE.MeshStandardMaterial({ color:0x2b3742, roughness:0.95 })
+  );
+  bigFloor.rotation.x = -Math.PI/2;
+  bigFloor.position.y = -0.34;
+  bigFloor.receiveShadow = true;
+  g.add(bigFloor);
+
+  // 地面板（顶面对齐 y=0，使人体脚底 y=0 正好贴地）
+  const groundMesh = new THREE.Mesh(
+    new THREE.BoxGeometry(14, 0.4, 10),
+    new THREE.MeshStandardMaterial({ color:0x38434f, roughness:0.7 })
+  );
+  groundMesh.position.y = -0.2;
+  groundMesh.receiveShadow = true;
+  g.add(groundMesh);
+
+  // 人体根节点（骨盆中心）
+  bodyRoot = new THREE.Group();
+  bodyRoot.position.set(0, BODY_PELVIS_H, 0);
+  g.add(bodyRoot);
+
+  // 辅助：创建胶囊肢体。parent 为上级 group，anchor 为关节在本级坐标的位置。
+  // dir=-1 肢体沿 -Y 向下延伸（腿、下垂手臂），dir=+1 沿 +Y 向上延伸（躯干、颈）。
+  function bone(radius, len, mat, parent, anchor, dir=-1){
+    const grp = new THREE.Group();
+    grp.position.set(anchor[0], anchor[1], anchor[2]);
+    const mesh = new THREE.Mesh(new THREE.CapsuleGeometry(radius, len, 6, 14), mat);
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    mesh.position.set(0, dir*len/2, 0);
+    grp.add(mesh);
+    parent.add(grp);
+    bodyMeshes.push(mesh);
+    return grp;
+  }
+  // 关节注册：把可动关节加入 bodyJoints，并挂到 BJ 上
+  function joint(name, grp, base, amp, speed, min, max, axis){
+    const j = { g:grp, ang:base, base, amp, speed, min, max, axis };
+    bodyJoints.push(j);
+    BJ[name] = j;
+    grp.rotation[axis] = base;
+    return j;
+  }
+
+  // ============ 骨骼尺寸（米） ============
+  // 总高约 1.7m：脚底 y=0 → 踝 0.10 → 膝 0.50 → 髋 0.92 → 肩 1.35 → 颈 1.52 → 头顶 1.72
+  // bodyRoot 原点在骨盆中心 y=0.95。
+  const thighLen = 0.42, shinLen = 0.38;   // 大腿/小腿
+  const upperArm = 0.30, foreArm = 0.27;   // 上臂/前臂
+  const spineLow = 0.18, spineHigh = 0.34; // 腰椎/胸椎长度
+
+  // ---- 骨盆（根，不单独转）----
+  const pelvis = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.24, 0.24), clothMat);
+  pelvis.castShadow = true; pelvis.receiveShadow = true;
+  bodyRoot.add(pelvis);
+  bodyMeshes.push(pelvis);
+  // 骨盆顶面在 bodyRoot 局部 y = +0.12
+
+  // ---- 腰椎：从骨盆顶(y=0.12)向上延伸 spineLow ----
+  const spineL = bone(0.13, spineLow, clothMat, bodyRoot, [0, 0.12, 0], +1);
+  joint('spineL', spineL, 0, 0.10, 3.0, -0.35, 0.35, 'x');
+
+  // ---- 胸椎：从腰椎顶向上延伸 spineHigh（含肩）----
+  const spineT = bone(0.15, spineHigh, clothMat, spineL, [0, spineLow, 0], +1);
+  joint('spineT', spineT, 0, 0.12, 3.2, -0.30, 0.30, 'x');
+
+  // ---- 颈：从胸椎顶向上延伸，再放头 ----
+  const neck = bone(0.07, 0.10, skinMat, spineT, [0, spineHigh, 0], +1);
+  joint('neck', neck, 0, 0.18, 3.6, -0.40, 0.40, 'x');
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.14, 18, 14), headMat);
+  head.position.set(0, 0.12, 0);
+  head.castShadow = true;
+  neck.add(head);
+  bodyMeshes.push(head);
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.145, 18, 14, 0, Math.PI*2, 0, Math.PI*0.55), hairMat);
+  hair.position.set(0, 0.13, 0.0);
+  neck.add(hair);
+  bodyMeshes.push(hair);
+
+  // ---- 手臂：肩在胸椎上部两侧，向下垂 ----
+  // 肩 pivot 位于胸椎局部 y=spineHigh-0.04（靠近胸椎顶）
+  const shL = bone(0.075, upperArm, skinMat, spineT, [-0.25, spineHigh-0.04, 0], -1);
+  const shR = bone(0.075, upperArm, skinMat, spineT, [ 0.25, spineHigh-0.04, 0], -1);
+  const elL = bone(0.065, foreArm, skinMat, shL, [0, -upperArm, 0], -1);
+  const elR = bone(0.065, foreArm, skinMat, shR, [0, -upperArm, 0], -1);
+  const wrL = bone(0.055, 0.12, skinMat, elL, [0, -foreArm, 0], -1);
+  const wrR = bone(0.055, 0.12, skinMat, elR, [0, -foreArm, 0], -1);
+  // 肩关节：绕 x 轴（矢状面前后挥臂），向后 max、向前大幅 min（可前伸够）
+  joint('shL', shL, -0.10, 0.55, 3.4, -2.3, 1.0, 'x');
+  joint('shR', shR, -0.10, 0.55, 3.4, -2.3, 1.0, 'x');
+  // 肘关节：绕 x 轴弯曲，只能向前折（min 0 伸直，max 2.6 屈肘）
+  joint('elL', elL, 0.45, 0.50, 3.0, 0.0, 2.6, 'x');
+  joint('elR', elR, 0.45, 0.50, 3.0, 0.0, 2.6, 'x');
+  // 腕关节：微调
+  joint('wrL', wrL, 0.0, 0.20, 3.2, -0.5, 0.5, 'x');
+  joint('wrR', wrR, 0.0, 0.20, 3.2, -0.5, 0.5, 'x');
+
+  // ---- 腿：髋在骨盆两侧下方，向下延伸 ----
+  const hipL = bone(0.10, thighLen, pantMat, bodyRoot, [-0.13, -0.10, 0], -1);
+  const hipR = bone(0.10, thighLen, pantMat, bodyRoot, [ 0.13, -0.10, 0], -1);
+  const kneeL = bone(0.08, shinLen, pantMat, hipL, [0, -thighLen, 0], -1);
+  const kneeR = bone(0.08, shinLen, pantMat, hipR, [0, -thighLen, 0], -1);
+  // 脚：踝关节在踝部，脚掌向前（+z）水平伸出（独立子 group 承载朝向，踝关节控制该子 group）
+  const ankleL = new THREE.Group(); ankleL.position.set(0, -shinLen, 0); kneeL.add(ankleL);
+  const ankleR = new THREE.Group(); ankleR.position.set(0, -shinLen, 0); kneeR.add(ankleR);
+  const footL = new THREE.Mesh(new THREE.CapsuleGeometry(0.06, 0.12, 6, 14), shoeMat);
+  const footR = new THREE.Mesh(new THREE.CapsuleGeometry(0.06, 0.12, 6, 14), shoeMat);
+  footL.castShadow = true; footR.castShadow = true;
+  footL.rotation.x = -Math.PI/2; footL.position.z = 0.12;
+  footR.rotation.x = -Math.PI/2; footR.position.z = 0.12;
+  ankleL.add(footL); ankleR.add(footR);
+  bodyMeshes.push(footL, footR);
+  // 髋关节：绕 x 轴前后摆腿
+  joint('hipL', hipL, 0, 0.30, 3.0, -0.8, 1.0, 'x');
+  joint('hipR', hipR, 0, 0.30, 3.0, -0.8, 1.0, 'x');
+  // 膝关节：绕 x 轴弯曲，只能向后折（min 0 伸直，max 2.4 屈膝）
+  joint('kneeL', kneeL, 0.05, 0.35, 3.2, 0.0, 2.4, 'x');
+  joint('kneeR', kneeR, 0.05, 0.35, 3.2, 0.0, 2.4, 'x');
+  // 踝关节：绕 x 轴微调（控制脚掌子 group）
+  joint('ankleL', ankleL, 0, 0.15, 3.0, -0.4, 0.4, 'x');
+  joint('ankleR', ankleR, 0, 0.15, 3.0, -0.4, 0.4, 'x');
+
+  bodyBuilding = g;
+  return g;
+}
+
+// 设置关节角度（绕指定轴，带生理限制）
+function setJointAng(j, ang){
+  const v = Math.max(j.min, Math.min(j.max, ang));
+  j.ang = v;
+  j.g.rotation[j.axis] = v;
+}
+
+// ==================== 人体震害 · 三种姿势对比 ====================
+// 核心：同一场地震，站着不动 / 往外乱跑 / 伏地遮挡，三种选择三种结局
+const TRIO = {
+  active:false, t0:0, mag:8, dur:5.2,
+  stand:null, run:null, crouch:null, table:null,
+  fallP:0, runP:0, hitP:0, phase:-1
+};
+
+function makePerson(kind){
+  const g = new THREE.Group();
+  const skin  = new THREE.MeshStandardMaterial({ color:0xe8b48a, roughness:0.6 });
+  const shoe  = new THREE.MeshStandardMaterial({ color:0x24282c, roughness:0.9 });
+  const pant  = new THREE.MeshStandardMaterial({ color:0x36424e, roughness:0.9 });
+  const shirtColor = kind === 'stand' ? 0xd9534f : (kind === 'run' ? 0xe8a13c : 0x4fae62);
+  const cloth = new THREE.MeshStandardMaterial({ color:shirtColor, roughness:0.85 });
+
+  const hip = new THREE.Group();
+  hip.position.y = 0.92;
+  g.add(hip);
+
+  // 躯干
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.165, 0.34, 6, 14), cloth);
+  torso.position.y = 0.33; torso.castShadow = true; torso.receiveShadow = true;
+  hip.add(torso);
+
+  // 头 + 眼睛
+  const head = new THREE.Group();
+  head.position.y = 0.72; hip.add(head);
+  const skull = new THREE.Mesh(new THREE.SphereGeometry(0.145, 18, 14), skin);
+  skull.castShadow = true; head.add(skull);
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.148, 18, 14, 0, Math.PI*2, 0, Math.PI*0.58),
+    new THREE.MeshStandardMaterial({ color:0x24211f, roughness:0.85 }));
+  hair.position.y = 0.02; head.add(hair);
+  const eyeMat = new THREE.MeshStandardMaterial({ color:0x14181c, roughness:0.4 });
+  [-0.055, 0.055].forEach(dx=>{
+    const e = new THREE.Mesh(new THREE.SphereGeometry(0.019, 8, 8), eyeMat);
+    e.position.set(dx, 0.01, 0.132); head.add(e);
+  });
+
+  // 腿
+  const legs = [];
+  [-0.105, 0.105].forEach(dx=>{
+    const thigh = new THREE.Group(); thigh.position.set(dx, -0.05, 0); hip.add(thigh);
+    const tm = new THREE.Mesh(new THREE.CapsuleGeometry(0.093, 0.30, 6, 10), pant);
+    tm.position.y = -0.21; tm.castShadow = true; thigh.add(tm);
+    const shin = new THREE.Group(); shin.position.y = -0.42; thigh.add(shin);
+    const sm = new THREE.Mesh(new THREE.CapsuleGeometry(0.073, 0.26, 6, 10), pant);
+    sm.position.y = -0.19; sm.castShadow = true; shin.add(sm);
+    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.125, 0.075, 0.25), shoe);
+    foot.position.set(0, -0.355, 0.055); foot.castShadow = true; shin.add(foot);
+    legs.push({ thigh, shin });
+  });
+
+  // 手臂
+  const arms = [];
+  [-0.225, 0.225].forEach(dx=>{
+    const sh = new THREE.Group(); sh.position.set(dx, 0.545, 0); hip.add(sh);
+    const am = new THREE.Mesh(new THREE.CapsuleGeometry(0.060, 0.25, 6, 10), cloth);
+    am.position.y = -0.16; am.castShadow = true; sh.add(am);
+    const el = new THREE.Group(); el.position.y = -0.30; sh.add(el);
+    const fm = new THREE.Mesh(new THREE.CapsuleGeometry(0.052, 0.21, 6, 10), skin);
+    fm.position.y = -0.14; fm.castShadow = true; el.add(fm);
+    arms.push({ sh, el });
+  });
+
+  // ---- 姿势 ----
+  if(kind === 'run'){
+    hip.rotation.x = 0.34;                    // 身体前倾
+    legs[0].thigh.rotation.x = 0.95; legs[0].shin.rotation.x = -0.55;
+    legs[1].thigh.rotation.x = -0.70; legs[1].shin.rotation.x = 1.05;
+    arms[0].sh.rotation.x = -1.05; arms[0].el.rotation.x = 1.20;
+    arms[1].sh.rotation.x = 0.95;  arms[1].el.rotation.x = 1.00;
+    hip.position.y = 0.90;
+  } else if(kind === 'crouch'){
+    hip.position.y = 0.31;
+    hip.rotation.x = 1.02;
+    legs.forEach(l=>{ l.thigh.rotation.x = -2.05; l.shin.rotation.x = 2.45; });
+    arms.forEach(a=>{ a.sh.rotation.x = -2.25; a.el.rotation.x = 2.05; a.sh.rotation.z = 0.30; });
+    head.rotation.x = 0.55;
+  } else {
+    hip.rotation.x = 0.02;
+    arms.forEach(a=>{ a.sh.rotation.x = 0.02; a.el.rotation.x = 0.30; });
+    legs.forEach(l=>{ l.thigh.rotation.x = 0.02; l.shin.rotation.x = 0.02; });
+  }
+
+  return { g, hip, head, torso, legs, arms };
+}
+
+function makeTable(){
+  const g = new THREE.Group();
+  const wood = new THREE.MeshStandardMaterial({ color:0x8a6a48, roughness:0.72 });
+  const dark = new THREE.MeshStandardMaterial({ color:0x5a4432, roughness:0.86 });
+  const top = new THREE.Mesh(new THREE.BoxGeometry(2.12, 0.10, 1.30), wood);
+  top.position.y = 1.02; top.castShadow = true; top.receiveShadow = true;
+  g.add(top);
+  [[-0.96,-0.56],[0.96,-0.56],[-0.96,0.56],[0.96,0.56]].forEach(p=>{
+    const l = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.97, 0.08), dark);
+    l.position.set(p[0], 0.485, p[1]); l.castShadow = true; g.add(l);
+  });
+  return g;
+}
+
+// 头顶标签（精灵，永远面向相机）
+function makeTagSprite(text, color){
+  const cv = document.createElement('canvas');
+  cv.width = 320; cv.height = 84;
+  const c = cv.getContext('2d');
+  c.fillStyle = 'rgba(10,16,22,0.88)';
+  if(c.roundRect){ c.beginPath(); c.roundRect(4, 6, 312, 72, 16); c.fill(); }
+  else c.fillRect(4, 6, 312, 72);
+  c.strokeStyle = color; c.lineWidth = 3;
+  if(c.roundRect){ c.beginPath(); c.roundRect(4, 6, 312, 72, 16); c.stroke(); }
+  c.fillStyle = color;
+  c.font = '700 40px "Microsoft YaHei","PingFang SC",sans-serif';
+  c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillText(text, 160, 44);
+  const tex = new THREE.CanvasTexture(cv);
+  if(THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:tex, transparent:true, depthTest:false }));
+  sp.scale.set(1.55, 0.41, 1);
+  sp.renderOrder = 999;
+  return sp;
+}
+
+function buildBodyTrio(){
+  const g = new THREE.Group();
+  g.userData = { type:'body' };
+
+  const floor = new THREE.Mesh(new THREE.CircleGeometry(16, 48),
+    new THREE.MeshStandardMaterial({ color:0x2b3742, roughness:0.95 }));
+  floor.rotation.x = -Math.PI/2; floor.position.y = -0.03; floor.receiveShadow = true;
+  g.add(floor);
+
+  const pad = new THREE.Mesh(new THREE.BoxGeometry(10.4, 0.14, 4.6),
+    new THREE.MeshStandardMaterial({ color:0x37424e, roughness:0.82 }));
+  pad.position.y = -0.07; pad.receiveShadow = true; g.add(pad);
+
+  // 三个人
+  TRIO.stand  = makePerson('stand');  TRIO.stand.g.position.set(-2.15, 0, 0);
+  TRIO.run    = makePerson('run');    TRIO.run.g.position.set(0.20, 0, 0);
+  TRIO.crouch = makePerson('crouch'); TRIO.crouch.g.position.set(2.55, 0, 0.05);
+  g.add(TRIO.stand.g, TRIO.run.g, TRIO.crouch.g);
+
+  // 桌子罩在蹲者上方
+  TRIO.table = makeTable();
+  TRIO.table.position.set(2.55, 0, 0.05);
+  g.add(TRIO.table);
+
+  // 砸向"乱跑者"的坠落板（楼板/吊顶板），落地后压在他身上
+  TRIO.slab = new THREE.Mesh(new THREE.BoxGeometry(0.98, 0.11, 0.64),
+    new THREE.MeshStandardMaterial({ color:0x9d978c, roughness:0.92 }));
+  TRIO.slab.castShadow = true; TRIO.slab.receiveShadow = true;
+  TRIO.slab.position.set(0.60, 2.74, -1.82);
+  TRIO.slab.rotation.set(0.26, 0.18, 0.16);
+  TRIO.slab.visible = false;
+  g.add(TRIO.slab);
+
+  // 头顶标签
+  TRIO.stand.tag = makeTagSprite('✕ 站着不动', '#ff7b6b');
+  TRIO.stand.tag.position.set(-2.15, 1.96, 0); g.add(TRIO.stand.tag);
+  TRIO.run.tag = makeTagSprite('△ 地震时乱跑', '#ffb26b');
+  TRIO.run.tag.position.set(0.20, 1.96, 0); g.add(TRIO.run.tag);
+  TRIO.crouch.tag = makeTagSprite('✓ 伏地遮挡', '#7fd88a');
+  TRIO.crouch.tag.position.set(2.55, 1.72, 0.05); g.add(TRIO.crouch.tag);
+
+  bodyBuilding = g;
+  return g;
+}
+
+function resetTrio(){
+  TRIO.active = false; TRIO.fallP = 0; TRIO.runP = 0; TRIO.hitP = 0; TRIO.phase = -1;
+  if(!TRIO.stand) return;
+  [TRIO.stand, TRIO.run, TRIO.crouch].forEach((p, i)=>{
+    p.g.position.set([-2.15, 0.20, 2.55][i], 0, i===2 ? 0.05 : 0);
+    p.g.rotation.set(0, 0, 0);
+  });
+  TRIO.crouch.g.rotation.set(0, 0, 0);
+  TRIO.stand.tag.material.opacity = 1;
+  TRIO.crouch.tag.material.opacity = 1;
+  TRIO.run.tag.visible = true;
+  if(TRIO.slab){
+    TRIO.slab.visible = false;
+    TRIO.slab.position.set(0.60, 2.74, -1.82);
+    TRIO.slab.rotation.set(0.26, 0.18, 0.16);
+  }
+}
+
+function triggerBody(){
+  if(!bodyBuilding || !TRIO.stand) return;
+  const mag = selectedMag;
+  resetTrio();
+  TRIO.active = true;
+  TRIO.t0 = performance.now();
+  TRIO.mag = mag;
+  TRIO.dur = mag >= 10 ? 5.2 : 5.0;
+  bodyShaking = true;
+  bodyShakeStart = TRIO.t0;
+  bodyShakeMag = mag;
+
+  const verdict = mag >= 8 ? '站着的人摔倒、往外跑的挨砸，只有伏地遮挡的人没事'
+                           : '三人晃得都不轻，但站着的和乱跑的最容易受伤';
+  statusBar.innerHTML = `人体遭遇 <b>${ROMAN[mag-1]} 度</b>地震：${verdict}`;
+  hideBubble();
+  setBodyHint(mag);
+  tlHide();   // 人体场景靠三个人直接对比，不再用逐步时间轴（会挡住模型）
+}
+
+// 控制面板里的一行三人结局（不占画面、不挡模型）
+function setBodyHint(mag){
+  const el = document.getElementById('bodyHint');
+  if(!el) return;
+  const ok = '#7fd88a', warn = '#ffb26b', bad = '#ff7b6b';
+  el.innerHTML =
+    `<span style="color:${bad}">✕ 站着不动</span>：重心高、撑面小 → ${mag>=8?'被甩倒、头部着地':'晃得站不稳'}` +
+    `<span style="margin:0 10px;color:#4a5763">|</span>` +
+    `<span style="color:${warn}">△ 地震时乱跑</span>：${mag>=7?'踩滑 + 被坠落物砸中':'脚下打滑摔倒'}` +
+    `<span style="margin:0 10px;color:#4a5763">|</span>` +
+    `<span style="color:${ok}">✓ 伏地遮挡</span>：重心最低、护住头 → 安全`;
+}
+
+function updateBodyTrio(now){
+  if(!TRIO.active) return;
+  const t = (now - TRIO.t0)/1000;
+  const mag = TRIO.mag;
+  const inten = Math.max(0, Math.min(1, (mag-5)/7));
+  const decay = Math.max(0, 1 - t/TRIO.dur);
+  const sw = Math.sin(t*(6.0 + mag*0.45));
+  const sw2 = Math.sin(t*(4.6 + mag*0.38) + 1.3);
+  const amp = (0.014 + inten*0.06) * decay;
+
+  // ---- 左：站着不动，Ⅷ 度以上重心被甩出去 ----
+  if(mag >= 8){
+    if(t > 1.1){
+      TRIO.fallP = Math.min(1, (t - 1.1)/1.5);
+      const e = TRIO.fallP*TRIO.fallP*(3 - 2*TRIO.fallP);
+      TRIO.stand.g.rotation.x = -e*1.46 + sw2*amp*0.5;  // 向后仰倒（朝画面内侧）
+      TRIO.stand.g.rotation.z = sw*amp*1.1;
+      TRIO.stand.g.position.y = e*0.17;
+      TRIO.stand.g.position.z = -e*0.45;
+      if(TRIO.fallP >= 1 && TRIO.phase < 1){
+        TRIO.phase = 1;
+
+      }
+    } else {
+      TRIO.stand.g.rotation.z = sw*amp*2.2;
+      TRIO.stand.g.rotation.x = sw2*amp*0.7;
+    }
+  } else {
+    TRIO.stand.g.rotation.z = sw*amp*1.8;
+    TRIO.stand.g.rotation.x = sw2*amp*0.8;
+  }
+
+  // ---- 中：往外跑，先跑两步再被"坠落物"砸倒 ----
+  const runStart = 1.0;
+  if(t > runStart){
+    TRIO.runP = Math.min(1, (t - runStart)/1.1);
+    const e = TRIO.runP*TRIO.runP*(3 - 2*TRIO.runP);
+    TRIO.run.g.position.z = -e*1.35;                     // 朝画面内侧跑
+    TRIO.run.g.position.x = 0.20 + e*0.40;
+    // 跑动颠簸
+    const bounce = Math.abs(Math.sin(t*9)) * 0.05 * (1 - TRIO.hitP);
+    TRIO.run.g.position.y = bounce;
+    TRIO.run.g.rotation.z = sw*amp*1.4;
+    if(t > 2.2 || mag < 7){
+      if(TRIO.hitP < 1){
+        TRIO.hitP = Math.min(1, (t - 2.2)/0.5);
+        if(TRIO.hitP >= 1 && TRIO.phase < 2){
+          TRIO.phase = 2;
+
+        }
+      }
+      const h = TRIO.hitP*TRIO.hitP*(3 - 2*TRIO.hitP);
+      TRIO.run.g.rotation.x = -h*1.50;                   // 向前扑倒（几乎贴地）
+      TRIO.run.g.position.y = h*0.02;
+      TRIO.run.g.position.z = -1.35 - h*0.30;
+    }
+  }
+
+  // ---- 右：伏地遮挡，一直稳在桌下 ----
+  TRIO.crouch.g.rotation.z = sw*amp*0.8;
+  TRIO.crouch.g.rotation.x = sw2*amp*0.5;
+  TRIO.crouch.g.position.y = 0;
+  // 桌子跟着轻微晃（真实场景桌子也会动，但不会倒）
+  TRIO.table.rotation.z = sw*amp*0.35;
+
+  // ---- 坠落板：Ⅶ 度以上砸向乱跑者 ----
+  if(TRIO.slab){
+    const fallFrom = 2.00;
+    const s = (mag >= 7 && t > fallFrom) ? Math.min(1, (t - fallFrom)/0.46) : 0;
+    TRIO.slab.visible = s > 0;
+    if(s > 0){
+      const e = s*s*(3 - 2*s);
+      TRIO.slab.position.set(0.60, 2.74 - e*2.44, -1.82);
+      TRIO.slab.rotation.set(0.26*(1-e) - 0.14, 0.18*(1-e), 0.16*(1-e) - 0.10);
+    }
+  }
+
+  // ---- 收尾 ----
+  if(t > TRIO.dur && TRIO.phase < 3){
+    TRIO.phase = 3;
+    const verdict = mag >= 8 ? '摔倒 + 被砸' : '两人受伤';
+
+    statusBar.innerHTML = `人体 <b>${ROMAN[mag-1]} 度</b>：站着${mag>=8?'摔倒':'晃得不轻'}、乱跑${mag>=7?'被砸':'滑倒'}、伏地遮挡安全`;
+  }
+}
+
+function resetBody(){
+  // 新版人体场景是"三人对比"，复位就是让三人回到初始姿势
+  if(TRIO.stand){ resetTrio(); }
+  bodyShaking = false;
+}
+
+let shaking = { rc:false, brick:false, wood:false, hill:false };
+let shakingStart = { rc:0, brick:0, wood:0, hill:0 };
+let shakeMag = { rc:0, brick:0, wood:0, hill:0 };
+let shakeDur = { rc:0, brick:0, wood:0, hill:0 };
+let collapseProgress = { rc:0, brick:0, wood:0, hill:0 };
+let collapseDir = { rc:0, brick:0, wood:0, hill:0 };
+let dropTimer = { rc:0, brick:0, wood:0, hill:0 };
+let flowTimer = { hill:0 };
+
+function detachPiece(b, p, force){
+  p.userData.detached = true;
+  const wp = new THREE.Vector3();
+  p.getWorldPosition(wp);
+  b.remove(p);
+  p.position.copy(wp);
+  p.userData.vx = (Math.random()-0.5)*2 + collapseDir[b.userData.type]*2;
+  p.userData.vy = 1 + Math.random()*2;
+  p.userData.vz = (Math.random()-0.5)*2;
+  p.userData.vrx=(Math.random()-0.5)*8;
+  p.userData.vry=(Math.random()-0.5)*8;
+  p.userData.vrz=(Math.random()-0.5)*8;
+  scene.add(p);
+  debris.push(p);
+}
+
+// 构件脱落顺序：砖/钢混低层先坏（薄弱层），木结构各节点均匀失效
+function pickPieceByFloor(b, k){
+  const cands = b.userData.pieces.filter(p=>!p.userData.detached);
+  if(!cands.length) return null;
+  if(k === 'wood') return cands[Math.floor(Math.random()*cands.length)];
+  let total = 0;
+  const w = cands.map(p=>{
+    const y = Math.max(0, p.userData.oy || 0);
+    const v = Math.pow(1/(1 + y*0.42), 1.9) + 0.07;
+    total += v; return v;
+  });
+  let r = Math.random()*total;
+  for(let i=0;i<cands.length;i++){ r -= w[i]; if(r <= 0) return cands[i]; }
+  return cands[cands.length-1];
+}
+
+function triggerHouse(){
+  const b = buildings.find(x=>x.userData.type===selectedMat);
+  if (!b) return;
+  const k = selectedMat;
+  const mag = selectedMag;
+  const si = stateInfo[k];
+  const collapseProb = si.data.collapseProb[mag-1] || 0;
+  const willCollapse = mag >= si.collapseTh || Math.random() < collapseProb;
+  shaking[k] = true;
+  shakingStart[k] = performance.now();
+  shakeMag[k] = mag;
+  shakeDur[k] = willCollapse ? (mag>=10?4000:3200) : (mag>=8?3200:2400);
+  collapseProgress[k] = 0;
+  collapseDir[k] = (Math.random()>0.5?1:-1)*(0.7+Math.random()*0.6);
+  dropTimer[k] = 0;
+  b.userData.willCollapse = willCollapse;
+  b.userData.collapseProb = collapseProb;
+  // 激活城市环境震动（车辆、行人）
+  cityShakeActive = true;
+  cityShakeStart = performance.now();
+  cityShakeMag = mag;
+  // ---- 城市楼群随震级倒塌：低矮老楼先倒，高层框架相对稳定 ----
+  let towerP = 0;
+  if(mag >= 12) towerP = 0.85;
+  else if(mag >= 11) towerP = 0.68;
+  else if(mag >= 10) towerP = 0.48;
+  else if(mag >= 9) towerP = 0.26;
+  else if(mag >= 8) towerP = 0.07;
+  cityTowers.forEach((tw, i) => {
+    tw.collapsed = false;
+    tw.fallP = 0;
+    tw.dir = Math.random() > 0.5 ? 1 : -1;
+    tw.delay = 0.45 + (i % 6) * 0.30 + Math.random() * 0.5;
+    // 按高度分级：矮楼（≤5 层）最危险、中楼倾斜或局部垮、高楼主体稳定只在底部受损
+    const st = towerStateByHeight(tw.h, mag);
+    tw.willCollapse = st !== 'none';
+    tw.mode = st;
+  });
+  const nFull = cityTowers.filter(t=>t.mode === 'full').length;
+  const nPart = cityTowers.filter(t=>t.mode === 'partial').length;
+  const nBase = cityTowers.filter(t=>t.mode === 'base').length;
+
+  let desc = willCollapse?'墙体开裂后整体倒塌':(mag<si.crackTh?'只晃不坏':'墙体开裂、构件掉落，但没倒');
+  statusBar.innerHTML = `${si.name} 遭遇 <b>${ROMAN[mag-1]} 度</b>地震：${desc}（整栋倒塌概率 ${(collapseProb*100).toFixed(1)}%）　|　楼群：<b>${nFull}</b> 栋全倒、<b>${nPart}</b> 栋局部垮、<b>${nBase}</b> 栋仅底部受损`;
+  const dirTxt = willCollapse?(collapseDir[k]>0?'向右':'向左'):'';
+  showBubble(b, `${si.name} · ${ROMAN[mag-1]} 度（${magLabel(mag)}）`, si.explain.intro,
+    willCollapse?`整栋倒塌概率 ${(collapseProb*100).toFixed(1)}%，这一次它${dirTxt}倒了`:`整栋倒塌概率 ${(collapseProb*100).toFixed(1)}%，这一次没倒`);
+  bubblePhase = 0;
+  document.getElementById('sourceTag').innerHTML = `数据来源：<b>${si.data.source}</b><br>${ROMAN[mag-1]}度整栋倒塌概率 ${(collapseProb*100).toFixed(1)}%`;
+
+  // ---- 过程记录：按时间逐条追加 ----
+  tlReset(`${si.name} · ${ROMAN[mag-1]} 度`, `数据来源：${si.data.source}`);
+  tlPush('0.0 s', `地震波到达，地面开始往返晃动；${si.floors} 层${si.short}，整栋倒塌概率 ${(collapseProb*100).toFixed(0)}%。`);
+  tlPush('0.0 s', si.explain.shake);
+  renderFloorPanel();
+  rsOnQuake(mag, 'house');
+}
+
+function triggerHill(){
+  const b = hillBuilding;
+  if (!b) return;
+  const mag = selectedMag;
+  const k = 'hill';
+  shaking[k] = true;
+  shakingStart[k] = performance.now();
+  shakeMag[k] = mag;
+  shakeDur[k] = mag>=10 ? 6200 : (mag>=8 ? 5000 : 3400);
+  collapseProgress[k] = 0;
+  collapseDir[k] = (Math.random()>0.5?1:-1);
+  dropTimer[k] = 0;
+  flowTimer[k] = 0;
+
+  const willSlide = mag >= 8;
+  b.userData.willSlide = willSlide;
+
+  // 重置滑坡状态（支持连续触发）
+  hillDetachPtr = 0;
+  hillScarFront = 0;
+  hillDetachList = b.userData.pieces.slice().sort((p,q)=>p.userData.sIdx - q.userData.sIdx);
+  hillTrees.forEach(tr=>{
+    tr.userData.fell = false;
+    if(tr.parent !== b){
+      const u = tr.userData;
+      b.add(tr);
+      tr.position.set(u.hx, hillHeight(u.hx, u.hz) - 0.06, u.hz);
+      tr.rotation.set(0,0,0);
+    }
+  });
+  if(hillTerrainGeo && hillBaseColors){
+    hillTerrainGeo.attributes.color.array.set(hillBaseColors);
+    hillTerrainGeo.attributes.color.needsUpdate = true;
+  }
+
+  // 滑坡规模：按震级估算体积与滑距，并归到四个等级
+  const slideVol = Math.round(20 * Math.pow(Math.max(0.2, mag - 6.5), 2.6) * 10) / 10;      // 万 m³
+  const slideDist = Math.round(60 + Math.max(0, mag - 7) * 70);             // m
+  const SLIDE_LV = [
+    ['小型', '< 10 万 m³', 0, 0, '#5cc86a'],
+    ['中型', '10–100 万 m³', 10, 100, '#c9c13a'],
+    ['大型', '100–1000 万 m³', 100, 1000, '#e8a13c'],
+    ['巨型', '> 1000 万 m³', 1000, 1e9, '#e25b5b']
+  ];
+  const lvIdx = Math.max(0, SLIDE_LV.findIndex(l => slideVol >= l[2] && slideVol < l[3]));
+  slideSummary = `${SLIDE_LV[lvIdx][0]} · 约 ${slideVol.toFixed(0)} 万 m³ ／ 滑距约 ${slideDist} m`;
+  document.getElementById('hiRows').innerHTML = SLIDE_LV.map((l, i)=>
+    `<div class="hi-row${i===lvIdx?' sel':''}"><i style="background:${l[4]}"></i><b>${l[0]}</b><span class="hi-v">${l[1]}</span></div>`
+  ).join('');
+  document.getElementById('hiFoot').innerHTML =
+    `本次：<b>${SLIDE_LV[lvIdx][0]}滑坡</b>　约 <b>${slideVol.toFixed(0)} 万 m³</b><br>滑距约 <b>${slideDist} m</b>，碎屑堆在坡脚`;
+
+  let desc, sub;
+  if(mag >= 11){ desc = '整片山坡解体，大规模滑坡，碎屑像泥石流一样冲进河道'; sub = '震得太狠：整块坡体被推下坡，滑动面从头到尾全部断开'; }
+  else if(mag >= 9){ desc = '较大规模滑坡，坡面整体下滑、树木成片倒下'; sub = '反复推挤之下坡体扛不住，滑动面彻底断开'; }
+  else if(mag >= 8){ desc = '局部坡体失稳，石块崩落并伴随小规模滑移'; sub = '坡脚先被剪断，一处滑起来，带着周围一起往下走'; }
+  else if(mag >= 7){ desc = '山体开裂，坡面落石、树木和河水明显摇晃'; sub = '裂了缝、掉了石头，但整片坡还没滑动'; }
+  else { desc = '山体轻微摇晃，零星碎石滚落，河面泛起波纹'; sub = '震得轻，坡体稳得住'; }
+
+  statusBar.innerHTML = `山体遭遇 <b>${ROMAN[mag-1]} 度</b>地震：${desc}`;
+  showBubble(b, `山体 · ${ROMAN[mag-1]} 度（${magLabel(mag)}）`,
+    '地震波传进山坡，会把坡体来回"甩"。坡脚承受的力最大，一旦被剪断，上面的土石就顺着坡面往下滑——这就是地震滑坡。' +
+    `<br><span style="color:#ffb26b">规模：${SLIDE_LV[lvIdx][0]} · 约 ${slideVol.toFixed(0)} 万 m³ ／ 滑距约 ${slideDist} m</span>`,
+    sub);
+  bubblePhase = 0;
+  tlReset(`山体边坡 · ${ROMAN[mag-1]} 度`, '数据来源：地震诱发滑坡机理（汶川地震滑坡研究）');
+  tlPush('0.0 s', `地震波到达坡脚，坡体开始整体摇晃（${mag>=8?'可能触发滑坡':'以开裂落石为主'}）。`);
+  document.getElementById('sourceTag').innerHTML = `数据来源：<b>地震诱发滑坡机理（汶川地震滑坡研究）</b>`;
+  rsOnQuake(mag, 'hill');
+}
+
+function updateHouse(k, b, now){
+  const t=(now-shakingStart[k])/1000;
+  const mag=shakeMag[k], dur=shakeDur[k]/1000, si=stateInfo[k];
+  const willCollapse=b.userData.willCollapse;
+  const progress=Math.min(t/dur,1);
+  const amp=0.06+mag*0.04;
+  const ts = t.toFixed(1) + ' s';
+  if(t>=dur){
+    shaking[k]=false;
+    if(willCollapse){
+      statusBar.innerHTML = `${si.name} 已倒塌（可重置）`;
+      showBubble(b, `${si.name} 倒塌完成`, si.explain.collapse, '点击「重置全部」恢复');
+      const shortV = { rc:'一楼柱子先塌了，上面几层跟着往下坐，三楼以上还立着', brick:'一楼承重墙碎了，上面几层整个往下坐，变成一堆碎砖头', wood:'连接的地方一个个脱开，屋顶先散了，整个木架子歪倒下来' }[k];
+      tlPush(ts, '整栋倒塌完成：' + shortV + '。', 'bad');
+    } else if(mag>=si.crackTh){
+      statusBar.innerHTML = `${si.name} 地震结束：开裂、掉构件，但没有倒塌`;
+      showBubble(b, `${si.name} 受损但没倒`, si.explain.crack, `整栋倒塌概率只有 ${(b.userData.collapseProb*100).toFixed(1)}%`);
+      tlPush(ts, '地震结束：墙体开裂、局部掉块，但整体没有倒——属于"有损伤、可修复"。', 'hot');
+    } else {
+      statusBar.innerHTML = `${si.name} 地震结束：基本完好`;
+      showBubble(b, `${si.name} 基本完好`, si.explain.shake, `没到开裂烈度（${ROMAN[Math.round(si.crackTh)]} 度）`);
+      tlPush(ts, '地震结束：只是晃动，没有结构性损伤。');
+    }
+    bubblePhase=-1; return;
+  }
+  const decay=Math.max(0,1-progress);
+  const sway=Math.sin(t*(3+mag*0.8))*amp*decay;
+  const ex=si.explain;
+  if(!willCollapse){
+    if(mag<si.crackTh){
+      if(bubblePhase!==1){ bubblePhase=1;
+        showBubble(b,`${si.name}·只是晃动`,ex.shake,`${ROMAN[mag-1]} 度 < 开裂烈度 ${ROMAN[Math.round(si.crackTh)]} 度`);
+        tlPush(ts, `晃动很轻，没到开裂烈度（${ROMAN[Math.round(si.crackTh)]} 度），墙体没有裂缝。`);
+      }
+    } else if(bubblePhase!==2){ bubblePhase=2;
+      showBubble(b,`${si.name}·墙体开裂`,ex.crack,`${ROMAN[mag-1]} 度 ≥ 开裂烈度`);
+      tlPush(ts, `出现裂缝：${ex.crack}`);
+    }
+  } else {
+    if(progress<0.3 && bubblePhase!==3){ bubblePhase=3;
+      showBubble(b,`${si.name}·剧烈摇晃`,ex.crack,'裂缝迅速扩展、构件大量掉落');
+      tlPush(ts, `裂缝迅速扩展，${k==='wood'?'节点开始脱开':'低层构件大量掉落'}。`, 'hot');
+    }
+    else if(progress>=0.3 && progress<0.75 && bubblePhase!==4){ bubblePhase=4;
+      const dtxt=collapseDir[k]>0?'向右':'向左';
+      showBubble(b,`${si.name}·开始倒塌`,ex.collapse,`整体${dtxt}倾斜倒下`);
+      tlPush(ts, `整体${dtxt}倾斜：${k==='rc'?'底层柱子被压弯，上面几层跟着坐下去':(k==='brick'?'底层承重墙被剪断，上部整体下沉':'榫卯脱开，屋架先散、架子随后歪倒')}。`, 'bad');
+    }
+  }
+  if(willCollapse&&progress>0.3){
+    const cp=(progress-0.3)/0.7; collapseProgress[k]=cp;
+    const ds=collapseDir[k];
+    // 三种结构的倒塌形态不同：
+    //   钢混 = 底层压溃后整体"坐下去"（下沉为主、倾斜小）
+    //   砖砌 = 底层被剪断，上部整体下沉并明显歪倒
+    //   木构 = 节点脱开，架子以倾倒为主
+    const mode = k==='rc' ? {rot:0.55, sink:1.9, slide:0.55}
+               : k==='brick' ? {rot:0.95, sink:1.6, slide:0.95}
+               : {rot:1.25, sink:1.0, slide:1.30};
+    b.rotation.z=ds*cp*mode.rot;
+    b.position.y=-cp*mode.sink;
+    b.position.x=b.userData.baseX+ds*cp*mode.slide;
+    b.position.z=ds*cp*0.45;
+    b.rotation.x=ds*cp*0.22;
+  } else { b.rotation.z=sway; }
+  const dropping=mag>=si.crackTh;
+  const dropRate=willCollapse?(mag>=11?30:18):2.5;
+  dropTimer[k]+=0.016;
+  if(dropping&&dropTimer[k]>1/dropRate){ dropTimer[k]=0;
+    const p=pickPieceByFloor(b, k);
+    if(p) detachPiece(b,p,mag);
+  }
+}
+
+// ============ 城市环境动态：地震时车辆跳动、行人摇晃/蹲下 ============
+var cityShakeActive = false;
+var cityShakeStart = 0;
+var cityShakeMag = 6;
+
+function updateCityEnv(now){
+  const falling = cityTowers.some(tw => tw.willCollapse && tw.fallP < 1);
+  if(!cityShakeActive && !falling){
+    // 震动已结束：车辆行人回正（城市楼群保留倒塌结果，需"重置全部"才恢复）
+    vehicles.forEach(v=>{
+      v.g.position.x = v.g.userData.baseX;
+      v.g.position.y = v.g.userData.baseY;
+      v.g.rotation.set(0, v.g.userData.baseRotY, 0);
+    });
+    pedestrians.forEach(p=>{
+      p.g.position.y = p.g.userData.baseY;
+      p.g.rotation.set(0, p.g.userData.baseRotY, 0);
+      p.torso.rotation.set(0,0,0); p.head.rotation.set(0,0,0);
+      p.legL.rotation.set(0,0,0); p.legR.rotation.set(0,0,0);
+      p.armL.rotation.set(0,0,0); p.armR.rotation.set(0,0,0);
+    });
+    return;
+  }
+  const dt = 0.016;
+  const t = (now - cityShakeStart)/1000;
+  const mag = cityShakeMag;
+  const dur = 4.2;
+  // 震动包络：先增强后衰减
+  let env = 1;
+  if(t > dur){ cityShakeActive = false; env = 0; }
+  else { env = Math.min(1, t/0.5) * Math.max(0, 1 - (t/dur)); }
+
+  const inten = Math.max(0, (mag - 5) / 7);   // 0~1
+
+  // ---- 车辆：上下跳动 + 车身摇晃 + 强震横向滑移 ----
+  vehicles.forEach((v, i) => {
+    const ph = i * 1.7;
+    // 垂直跳动（悬架被震起）
+    const bounce = Math.abs(Math.sin(t * (5.0 + mag*0.45) + ph)) * (0.012 + inten*0.135) * env;
+    v.g.position.y = v.g.userData.baseY + bounce;
+    // 强震时车辆被横向震得滑移
+    const slide = mag >= 9 ? Math.min(1, (mag-8)/4) * env : 0;
+    v.g.position.x = v.g.userData.baseX + Math.sin(t * 2.6 + ph) * slide * 0.38;
+    // 左右侧倾 + 前后俯仰
+    v.g.rotation.z = Math.sin(t * (3.4 + mag*0.4) + ph) * (0.008 + inten*0.055) * env;
+    v.g.rotation.x = Math.sin(t * (3.9 + mag*0.35) + ph*0.7) * (0.006 + inten*0.04) * env;
+  });
+
+  // ---- 行人：站立不稳摇晃，强震时蹲下抱头 ----
+  pedestrians.forEach((p, i) => {
+    const ph = i * 2.1;
+    if(!cityShakeActive){
+      p.g.position.y = p.g.userData.baseY;
+      p.g.rotation.z = 0; p.g.rotation.x = 0;
+      p.torso.rotation.set(0,0,0); p.head.rotation.set(0,0,0);
+      p.legL.rotation.set(0,0,0); p.legR.rotation.set(0,0,0);
+      p.armL.rotation.set(0,0,0); p.armR.rotation.set(0,0,0);
+      return;
+    }
+    // 身体摇晃（左右 + 前后，像努力保持平衡）
+    p.g.rotation.z = Math.sin(t * (3.0 + mag*0.45) + ph) * (0.05 + inten*0.32) * env;
+    p.g.rotation.x = Math.sin(t * (2.6 + mag*0.38) + ph*1.3) * (0.04 + inten*0.20) * env;
+    // 手臂张开（平衡动作，震级越大越明显）
+    const armOut = (0.15 + inten*0.95) * env;
+    p.armL.rotation.z =  armOut * (0.6 + 0.4*Math.sin(t*4+ph));
+    p.armR.rotation.z = -armOut * (0.6 + 0.4*Math.sin(t*4+ph+1.1));
+    p.armL.rotation.x =  Math.sin(t*3.4+ph)*0.25*env;
+    p.armR.rotation.x = -Math.sin(t*3.4+ph+0.8)*0.25*env;
+
+    // 蹲下抱头：Ⅸ度以上，人本能下蹲护头
+    const crouch = mag >= 9 ? Math.min(1, (mag-8)/4) * Math.min(1, t/0.8) * env : 0;
+    p.g.position.y = p.g.userData.baseY - crouch*0.42;
+    // 蹲下时屈膝（腿缩短视觉上就是下蹲）
+    p.legL.rotation.x =  crouch*1.1; p.legR.rotation.x = crouch*1.1;
+    p.torso.rotation.x = crouch*0.55;
+    p.head.rotation.x  = crouch*0.35;
+    // 蹲下时手臂上抬护头
+    if(crouch > 0.05){
+      p.armL.rotation.z =  (0.9 + inten*0.5) * crouch;
+      p.armR.rotation.z = -(0.9 + inten*0.5) * crouch;
+      p.armL.rotation.x = -1.4 * crouch;
+      p.armR.rotation.x = -1.4 * crouch;
+    }
+  });
+
+  // ---- 城市楼群：未倒塌的随震摇晃，倒塌的绕底座倾倒躺地 ----
+  cityTowers.forEach((tw, i) => {
+    const bx = tw.g.userData.baseX;
+    if(tw.willCollapse && t > tw.delay){
+      const partial = tw.mode === 'partial', base = tw.mode === 'base';
+      tw.fallP = Math.min(1, tw.fallP + 0.016 * (base ? 0.24 : (partial ? 0.34 : 0.46)));
+      const e = tw.fallP * tw.fallP * (3 - 2 * tw.fallP);
+      if(base){
+        // 仅底部几层压损：楼体基本直立，轻微下沉与倾斜
+        tw.g.rotation.z = tw.dir * e * 0.10;
+        tw.g.position.y = -e * tw.w * 0.05;
+        tw.g.position.x = bx + tw.dir * e * 0.30;
+      } else {
+        // 绕底座旋转倾倒（楼体始终在地面之上，不会沉入地下）
+        tw.g.rotation.z = tw.dir * e * (partial ? 0.58 : 1.44);
+        tw.g.position.y = -e * tw.w * (partial ? 0.34 : 0.22);   // 局部垮塌下沉更多
+        tw.g.position.x = bx + tw.dir * e * tw.h * (partial ? 0.12 : 0.30);
+      }
+      tw.collapsed = tw.fallP >= 1;
+    } else if(!tw.willCollapse){
+      tw.g.rotation.z = Math.sin(t * (2.0 + mag*0.28) + i*0.9) * 0.014 * inten * env;
+      tw.g.rotation.x = Math.sin(t * (1.7 + mag*0.24) + i*1.3) * 0.010 * inten * env;
+    }
+  });
+}
+
+// 按高度分级的楼群破坏规则：mag 越大越往上波及，高层始终最稳
+function towerStateByHeight(h, mag){
+  const band = h <= 15 ? 0 : (h <= 25 ? 1 : 2);   // 0 低层 / 1 中层 / 2 高层
+  if(band === 0){
+    if(mag >= 9) return 'full';
+    if(mag >= 8) return Math.random() < 0.65 ? 'full' : 'partial';
+    if(mag >= 7) return Math.random() < 0.55 ? 'partial' : 'none';
+    return 'none';
+  }
+  if(band === 1){
+    if(mag >= 11) return 'full';
+    if(mag >= 10) return Math.random() < 0.55 ? 'full' : 'partial';
+    if(mag >= 9) return 'partial';
+    if(mag >= 7.5) return Math.random() < 0.3 ? 'partial' : 'none';
+    return 'none';
+  }
+  if(mag >= 11) return 'base';
+  if(mag >= 9) return Math.random() < 0.45 ? 'base' : 'none';
+  return 'none';
+}
+
+// 完全复位城市环境（含楼群），供"重置全部"调用
+function resetCityEnv(){
+  cityShakeActive = false;
+  vehicles.forEach(v=>{
+    v.g.position.x = v.g.userData.baseX;
+    v.g.position.y = v.g.userData.baseY;
+    v.g.rotation.set(0, v.g.userData.baseRotY, 0);
+  });
+  pedestrians.forEach(p=>{
+    p.g.position.y = p.g.userData.baseY;
+    p.g.rotation.set(0, p.g.userData.baseRotY, 0);
+    p.torso.rotation.set(0,0,0); p.head.rotation.set(0,0,0);
+    p.legL.rotation.set(0,0,0); p.legR.rotation.set(0,0,0);
+    p.armL.rotation.set(0,0,0); p.armR.rotation.set(0,0,0);
+  });
+  cityTowers.forEach(tw=>{
+    tw.g.position.set(tw.g.userData.baseX, 0, tw.g.userData.baseZ);
+    tw.g.rotation.set(0,0,0);
+    tw.fallP = 0; tw.collapsed = false; tw.willCollapse = false;
+  });
+}
+
+// —— 滑坡体失稳：从母体剥离，沿坡面下滑 ——
+function detachHillPiece(p, mag){
+  const u = p.userData;
+  if(u.detached) return;
+  u.detached = true;
+  const wp = new THREE.Vector3();
+  p.getWorldPosition(wp);
+  if(p.parent) p.parent.remove(p);
+  p.position.copy(wp);
+  const lx = wp.x - HILL_X, lz = wp.z;
+  const s = hillSlope(lx, lz);
+  const sm = s.mag || 1;
+  const dx = s.mag > 0.01 ? -s.gx/sm : 0;
+  const dz = s.mag > 0.01 ? -s.gz/sm : 1;
+  const sp = 1.0 + Math.random()*1.6 + Math.max(0, mag-8)*0.55;
+  u.vx = dx*sp + (Math.random()-0.5)*1.1;
+  u.vz = dz*sp + (Math.random()-0.5)*1.1;
+  u.vy = 0.4 + Math.random()*1.5;
+  u.vrx = (Math.random()-0.5)*8;
+  u.vry = (Math.random()-0.5)*8;
+  u.vrz = (Math.random()-0.5)*8;
+  u.hill = true;
+  u.splashed = false;
+  scene.add(p);
+  debris.push(p);
+}
+
+// —— 树木被坡体推倒、随土体下滑 ——
+function detachTree(tr, mag){
+  const u = tr.userData;
+  if(u.fell) return;
+  u.fell = true;
+  const wp = new THREE.Vector3();
+  tr.getWorldPosition(wp);
+  if(tr.parent) tr.parent.remove(tr);
+  tr.position.copy(wp);
+  const lx = wp.x - HILL_X, lz = wp.z;
+  const s = hillSlope(lx, lz);
+  const sm = s.mag || 1;
+  const dx = s.mag > 0.01 ? -s.gx/sm : 0;
+  const dz = s.mag > 0.01 ? -s.gz/sm : 1;
+  const sp = 1.4 + Math.random()*1.5 + Math.max(0, mag-8)*0.45;
+  tr.rotation.set((Math.random() < 0.65 ? 1 : -1)*(1.05 + Math.random()*0.5), Math.random()*3, (Math.random()-0.5)*0.5);
+  u.vx = dx*sp;
+  u.vz = dz*sp;
+  u.vy = 0.3 + Math.random()*0.9;
+  u.vrx = (Math.random()-0.5)*1.2;
+  u.vry = (Math.random()-0.5)*2.2;
+  u.vrz = (Math.random()-0.5)*0.8;
+  u.r = 0.3;
+  u.hill = true;
+  u.splashed = true;   // 树不算击水
+  scene.add(tr);
+  debris.push(tr);
+}
+
+// —— 滑坡后壁：地形顶点色渐变为裸露岩土 ——
+function applyScar(front){
+  if(!hillTerrainGeo || !hillScarT) return;
+  const col = hillTerrainGeo.attributes.color;
+  const arr = col.array;
+  let changed = false;
+  for(let i=0;i<hillScarT.length;i++){
+    const tt = hillScarT[i];
+    if(tt > 9 || tt >= front) continue;
+    const a = Math.min(1, (front - tt) * 5) * 0.82;
+    const r0 = hillBaseColors[i*3], g0 = hillBaseColors[i*3+1], b0 = hillBaseColors[i*3+2];
+    const nr = r0 + (HILL_SCAR_COLOR.r - r0)*a;
+    const ng = g0 + (HILL_SCAR_COLOR.g - g0)*a;
+    const nb = b0 + (HILL_SCAR_COLOR.b - b0)*a;
+    if(Math.abs(nr - arr[i*3]) > 0.004){
+      arr[i*3] = nr; arr[i*3+1] = ng; arr[i*3+2] = nb;
+      changed = true;
+    }
+  }
+  if(changed) col.needsUpdate = true;
+}
+
+// —— 河流水面波动 ——
+function updateRiver(now, live, inten){
+  if(!riverMesh || !riverBase) return;
+  const t = now/1000;
+  const pos = riverMesh.geometry.attributes.position;
+  const amp = live ? (0.05 + inten*0.62) : 0.02;
+  const spd = live ? (2.4 + inten*3.6) : 1.1;
+  for(let i=0;i<pos.count;i++){
+    const bx = riverBase[i*3], bz = riverBase[i*3+2], by = riverBase[i*3+1];
+    const y = Math.sin(bx*0.45 + t*spd)*amp*0.55
+            + Math.sin(bz*1.10 + t*spd*1.3)*amp*0.35
+            + Math.sin((bx+bz)*0.28 + t*spd*0.8)*amp*0.35;
+    pos.setY(i, by + y);
+  }
+  pos.needsUpdate = true;
+  riverMesh.geometry.computeVertexNormals();
+}
+
+// —— 水花 ——
+function spawnSplash(x, z){
+  if(splashRings.length > 10) return;
+  const geo = new THREE.RingGeometry(0.16, 0.36, 18);
+  geo.rotateX(-Math.PI/2);
+  const mat = new THREE.MeshBasicMaterial({ color:0xd2e8f2, transparent:true, opacity:0.85,
+    side:THREE.DoubleSide, depthWrite:false });
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x, RIVER_Y + 0.03, z);
+  m.userData = { life:0, max:0.85 };
+  scene.add(m);
+  splashRings.push(m);
+}
+
+// —— 滑坡扬尘 ——
+function spawnDust(x, y, z, scale, life){
+  if(!dustTex){
+    dustTex = makeCanvasTexture((ctx,w,h)=>{
+      const grd = ctx.createRadialGradient(w/2,h/2,2,w/2,h/2,w/2);
+      grd.addColorStop(0,'rgba(208,194,168,0.95)');
+      grd.addColorStop(0.45,'rgba(188,172,144,0.42)');
+      grd.addColorStop(1,'rgba(172,157,132,0)');
+      ctx.fillStyle = grd; ctx.fillRect(0,0,w,h);
+    },128,128);
+  }
+  const mat = new THREE.SpriteMaterial({ map:dustTex, transparent:true, opacity:0.55, depthWrite:false });
+  const sp = new THREE.Sprite(mat);
+  sp.position.set(x, y, z);
+  sp.scale.set(scale, scale, 1);
+  sp.userData = { life:0, max:life, s0:scale,
+    vx:(Math.random()-0.5)*1.6, vy:0.5+Math.random()*0.9, vz:0.3+Math.random()*1.1 };
+  scene.add(sp);
+  dustParticles.push(sp);
+}
+
+function updateHillFx(dt){
+  for(let i=dustParticles.length-1;i>=0;i--){
+    const p = dustParticles[i], u = p.userData;
+    u.life += dt;
+    const k = u.life / u.max;
+    if(k >= 1){
+      scene.remove(p); p.material.dispose();
+      dustParticles.splice(i,1); continue;
+    }
+    p.position.x += u.vx*dt;
+    p.position.y += u.vy*dt;
+    p.position.z += u.vz*dt;
+    u.vy *= 0.985;
+    const sc = u.s0 * (1 + k*2.4);
+    p.scale.set(sc, sc, 1);
+    p.material.opacity = 0.55 * (1-k) * (1-k);
+  }
+  for(let i=splashRings.length-1;i>=0;i--){
+    const m = splashRings[i], u = m.userData;
+    u.life += dt;
+    const k = u.life / u.max;
+    if(k >= 1){
+      scene.remove(m); m.geometry.dispose(); m.material.dispose();
+      splashRings.splice(i,1); continue;
+    }
+    const s = 1 + k*4.6;
+    m.scale.set(s, 1, s);
+    m.material.opacity = 0.8*(1-k);
+  }
+}
+
+function updateHill(b, now){
+  const k='hill';
+  const t=(now-shakingStart[k])/1000;
+  const mag=shakeMag[k], dur=shakeDur[k]/1000;
+  const willSlide=b.userData.willSlide;
+  const progress=Math.min(t/dur,1);
+  const inten=Math.max(0,Math.min(1,(mag-5)/7));
+  const live = t < dur;
+
+  // —— 山体整体随地震波轻微摇摆 ——
+  const amp = 0.004 + inten*0.020;
+  b.rotation.z = live ? Math.sin(t*(2.2+mag*0.45))*amp : b.rotation.z*0.92;
+
+  // —— 树木摇摆（震级越大越剧烈）——
+  const ta = (0.015 + inten*0.28) * (live ? 1 : 0.12);
+  const tf = 2.6 + mag*0.5;
+  hillTrees.forEach((tr)=>{
+    const u = tr.userData;
+    if(u.fell || tr.parent !== b) return;
+    tr.rotation.z = Math.sin(t*tf + u.phase)*ta + Math.sin(t*tf*1.7 + u.phase*2)*ta*0.35;
+    tr.rotation.x = Math.cos(t*tf*0.9 + u.phase)*ta*0.65;
+  });
+
+  // —— 滑坡锋面：坡脚向坡顶渐进破坏 ——
+  let front = 0;
+  if(willSlide && progress > 0.20) front = Math.min(1.35, (progress-0.20)/0.58*1.30);
+
+  if(front > hillScarFront + 0.02){
+    hillScarFront = front;
+    applyScar(front);
+  }
+
+  if(front > 0 && hillDetachList.length){
+    const target = Math.floor(Math.min(1, front) * hillDetachList.length);
+    const cap = 4 + Math.max(0, mag-8);
+    let n = 0;
+    while(hillDetachPtr < target && n < cap){
+      const p = hillDetachList[hillDetachPtr++];
+      if(!p.userData.detached) detachHillPiece(p, mag);
+      n++;
+    }
+    // 树木被坡体推倒带走
+    if(live && Math.random() < 0.10 + inten*0.14){
+      const cand = hillTrees.filter(tr=>!tr.userData.fell && tr.parent===b && tr.userData.sIdx < front);
+      if(cand.length) detachTree(cand[Math.floor(Math.random()*cand.length)], mag);
+    }
+    // 扬尘
+    if(live){
+      dustTimer += 0.016;
+      if(dustTimer > 0.055 && dustParticles.length < 26){
+        dustTimer = 0;
+        const lx = (Math.random()-0.5)*26, lz = 7 + Math.random()*11;
+        spawnDust(HILL_X+lx, hillHeight(lx,lz)+0.9, lz, 2.2+Math.random()*2.4, 1.5+Math.random()*1.2);
+      }
+    }
+  }
+
+  // —— 未整体滑坡：零星落石 ——
+  if(!willSlide && live){
+    dropTimer[k] += 0.016;
+    const rate = 2 + inten*12;
+    if(dropTimer[k] > 1/rate){
+      dropTimer[k] = 0;
+      const cands = b.userData.rocks.filter(p=>!p.userData.detached);
+      if(cands.length) detachHillPiece(cands[Math.floor(Math.random()*cands.length)], mag);
+    }
+  }
+
+  // —— 收尾（滑坡体全部剥离后才停止）——
+  const done = t >= dur && (!willSlide || hillDetachPtr >= hillDetachList.length);
+  const ts = t.toFixed(1) + ' s';
+  if(!done){
+    if(mag < 7){
+      if(bubblePhase!==1){ bubblePhase=1;
+        showBubble(b,'山体·轻轻一抖','地面抖一下，坡上滚下几块碎石，河面起了波纹。','震得轻，坡体自己扛得住');
+        tlPush(ts, '坡面只是轻轻震动，掉了几块碎石，河面泛起波纹。');
+      }
+    } else if(!willSlide){
+      if(bubblePhase!==2){ bubblePhase=2;
+        showBubble(b,'山体·裂了缝、掉石头','坡面裂开细缝，零星石块崩落，树在摇、河水在晃，但整片山坡没滑下来。','裂了，但"滑动的面"还没连通');
+        tlPush(ts, '坡面出现裂缝，零星石块滚落；裂缝还没连成一条完整的滑动面。');
+      }
+    } else {
+      if(progress<0.35 && bubblePhase!==3){ bubblePhase=3;
+        showBubble(b,'山体·坡脚先被剪断','坡脚是整片坡的"支点"。支点一旦被剪断，上面的土石就失去支撑，开始解体、下滑。','地震反复推挤 + 土里水压升高，坡体扛不住了');
+        tlPush(ts, '坡脚先被剪断——它是整片坡的支点，支点一失，上部土石开始解体下滑。', 'hot');
+      }
+      else if(progress>=0.35 && bubblePhase!==4){ bubblePhase=4;
+        showBubble(b,'山体·整坡下滑','滑体顺着坡面高速冲下来，碎屑涌进河道，坡面上留下一道新鲜的、光溜溜的滑面。','滑动面全线连通，整块坡体一起失稳');
+        tlPush(ts, '滑动面全线连通，滑体冲入河道，坡面露出新鲜滑面，河水泥沙增多。', 'bad');
+      }
+    }
+    return;
+  }
+
+  shaking[k] = false;
+  b.rotation.z = 0;
+  const nRock = b.userData.rocks.filter(p=>p.userData.detached).length;
+  const nFall = hillTrees.filter(tr=>tr.userData.fell).length;
+  if(willSlide){
+    statusBar.innerHTML = `滑坡结束：滚落岩块 <b>${nRock}</b> 块、倒下树木 <b>${nFall}</b> 株，碎屑堆在坡脚和河道里`;
+    showBubble(b,'山体·滑坡完成','滑下来的土石在坡脚和河道堆成一片，坡面上那块颜色发褐、没有植被的地方就是新的滑面。' +
+      `<br><span style="color:#ffb26b">规模：${slideSummary}</span>`,'点击「重置全部」恢复');
+    tlPush(ts, `滑坡结束：${nRock} 块岩石、${nFall} 株树木随坡体下滑，堆积在坡脚与河道。`, 'bad');
+  } else {
+    statusBar.innerHTML = `地震结束：山体开裂、掉落 <b>${nRock}</b> 块岩石，整片山坡没滑`;
+    showBubble(b,'山体·开裂未滑','坡面裂了缝、掉了几块石头，但整片山坡还稳着。','震级不够，滑动面没连通');
+    tlPush(ts, '地震结束：裂缝与落石有，但没形成贯通的滑动面，整坡未滑。', 'hot');
+  }
+  bubblePhase = -1;
+}
+
+function updateDebris(dt){
+  for(let i=debris.length-1;i>=0;i--){
+    const d=debris[i], u=d.userData;
+    u.vy -= GRAVITY*dt;
+    d.position.x += u.vx*dt;
+    d.position.y += u.vy*dt;
+    d.position.z += u.vz*dt;
+    d.rotation.x += u.vrx*dt;
+    d.rotation.y += u.vry*dt;
+    d.rotation.z += u.vrz*dt;
+
+    if(u.hill){
+      // —— 山体碎屑：与起伏地形接触，沿坡面继续下滑 ——
+      const lx = d.position.x - HILL_X;
+      const surf = Math.max(GROUND_Y, hillHeight(lx, d.position.z));
+      const rest = surf + (u.r || 0.35)*0.7;
+      // 落入河道 → 水花
+      if(!u.splashed && Math.abs(d.position.z - RIVER_Z) < 6 && d.position.y < RIVER_Y + 0.35){
+        u.splashed = true;
+        spawnSplash(d.position.x, d.position.z);
+      }
+      if(d.position.y <= rest){
+        d.position.y = rest;
+        if(u.vy < -4){
+          u.vy = -u.vy*0.22; u.vx *= 0.62; u.vz *= 0.62;
+        } else {
+          u.vy = 0;
+          const s = hillSlope(lx, d.position.z);
+          if(s.mag > 0.05){
+            const kk = 26 * s.mag / (1 + s.mag*s.mag);
+            u.vx -= kk*(s.gx/s.mag)*dt;
+            u.vz -= kk*(s.gz/s.mag)*dt;
+          }
+          u.vx *= 0.985; u.vz *= 0.988;
+          u.vrx *= 0.90; u.vry *= 0.92; u.vrz *= 0.90;
+        }
+      }
+      if(Math.abs(d.position.x - HILL_X) > 74 || Math.abs(d.position.z) > 64 || d.position.y < -15){
+        scene.remove(d); debris.splice(i,1);
+      }
+      continue;
+    }
+
+    const half=0.25;
+    if(d.position.y < GROUND_Y+half){
+      d.position.y = GROUND_Y+half;
+      if(Math.abs(d.userData.vy)>2){ d.userData.vy*=-0.3; d.userData.vx*=0.7; d.userData.vz*=0.7; d.userData.vrx*=0.6; d.userData.vry*=0.6; d.userData.vrz*=0.6; }
+      else {
+        d.userData.vy=0;
+        if(d.userData.isFlow){
+          d.userData.vx*=0.9; d.userData.vz*=0.9;
+        } else {
+          d.userData.vx*=0.85; d.userData.vz*=0.85;
+        }
+        d.userData.vrx*=0.9; d.userData.vry*=0.9; d.userData.vrz*=0.9;
+      }
+    }
+    if(Math.abs(d.position.x)>70||Math.abs(d.position.z)>70){ scene.remove(d); debris.splice(i,1); }
+  }
+}
+
+// 依据底部控制面板的实际高度，把左右侧栏抬到它上方，避免小窗口互相压住
+function layoutSidePanels(){
+  const cp = document.querySelector('.control-panel');
+  const h = cp ? cp.getBoundingClientRect().height : 200;
+  const bottom = 18 + h + 14;
+  const tl = document.getElementById('timeline');
+  const fp = document.getElementById('floorPanel');
+  const hud = document.querySelector('.hud');
+  const hudH = hud ? hud.getBoundingClientRect().height : 96;
+  const topLimit = Math.max(96, hudH + 12);
+  if(tl){ tl.style.bottom = bottom + 'px'; tl.style.maxHeight = Math.max(140, window.innerHeight - bottom - topLimit) + 'px'; }
+  if(fp){ fp.style.bottom = bottom + 'px'; }
+  const st = document.getElementById('sourceTag');
+  const hn = document.getElementById('hint');
+  if(st){
+    st.style.bottom = (18 + h + 8) + 'px';
+    st.style.display = (tl && tl.classList.contains('on')) ? 'none' : '';
+  }
+  if(hn) hn.style.bottom = (18 + h + 8) + 'px';
+}
+window.addEventListener('resize', ()=>setTimeout(layoutSidePanels, 60));
+
+// ---- 全局字号缩放（A- / A / A+），选择记在本地 ----
+const FS_KEY = 'seis_font_scale';
+function applyFontScale(v){
+  document.documentElement.style.setProperty('--fs', v);
+  document.querySelectorAll('.fs-ctrl button').forEach(b=>{
+    b.classList.toggle('on', Math.abs(parseFloat(b.dataset.fs) - v) < 0.001);
+  });
+  try{ localStorage.setItem(FS_KEY, String(v)); }catch(e){}
+  layoutSidePanels();
+}
+document.querySelectorAll('.fs-ctrl button').forEach(b=>{
+  b.addEventListener('click', ()=>applyFontScale(parseFloat(b.dataset.fs)));
+});
+try{
+  const saved = parseFloat(localStorage.getItem(FS_KEY) || '1');
+  if(saved >= 0.8 && saved <= 1.2) applyFontScale(saved);
+}catch(e){}
+
+function switchScene(mode){
+  currentScene = mode;
+  houseGroup.visible = (mode==='house');
+  hillGroup.visible = (mode==='hill');
+  bodyGroup.visible = (mode==='body');
+  if(mode==='house'){
+    document.getElementById('sceneTitle').textContent = '房屋震害 · 三材质倒塌';
+    document.getElementById('sceneDesc').textContent = '点击选择房屋材质，再点击震级触发地震';
+    document.getElementById('step1Label').textContent = '第一步 · 选择房屋材质';
+    document.getElementById('legend').innerHTML = '<span><i style="background:#4fa3d9"></i>钢筋混凝土</span><span><i style="background:#d9703f"></i>砖砌体</span><span><i style="background:#c9a05a"></i>木结构</span><span><i style="background:#7e868f"></i>城市楼群</span><span><i style="background:#d94f4f"></i>车辆</span><span><i style="background:#e8b48a"></i>行人</span>';
+    buildMaterialRow();
+    document.getElementById('hillInfo').classList.remove('on');
+    document.getElementById('goBtn').onclick = triggerHouse;
+    controls.target.set(0, 2, -1);
+    camera.position.set(0, 27, 55);
+    focusShadow(0, -2, 42);
+    bubbleLift = 4.6;
+    buildCity(selectedMat);
+    moveMatRing();
+    document.getElementById('floorPanel').classList.add('on');
+    renderFloorPanel();
+    statusBar.innerHTML = '请选择房屋材质';
+    document.getElementById('sourceTag').innerHTML = `数据来源：<b>${stateInfo[selectedMat].data.source}</b>`;
+  } else if(mode==='hill'){
+    document.getElementById('sceneTitle').textContent = '山体滑坡 · 地震诱发崩裂';
+    document.getElementById('sceneDesc').textContent = '选择震级触发地震：山体开裂→岩块崩落→坡体解体滑坡，树木倒伏、碎屑流入河道';
+    document.getElementById('step1Label').textContent = '本场景为山体（无材质选择）';
+    document.getElementById('materialRow').innerHTML = '<div style="color:var(--muted);font-size:13px;padding:6px 0;">目标：山体边坡（岩土体）</div>';
+    document.getElementById('legend').innerHTML = '<span><i style="background:#8a7d63"></i>崩落岩块</span><span><i style="background:#6f6249"></i>坡体/土层</span><span><i style="background:#4a713c"></i>树木</span><span><i style="background:#2f6d8c"></i>河流</span>';
+    document.getElementById('goBtn').onclick = triggerHill;
+    controls.target.set(90, 10, 2);
+    camera.position.set(90, 57, 80);
+    focusShadow(90, -4, 46);
+    bubbleLift = 21.0;
+    document.getElementById('floorPanel').classList.remove('on');
+    document.getElementById('hillInfo').classList.add('on');
+    document.body.classList.remove('floor-on');
+    statusBar.innerHTML = '山体场景：选择震级后触发地震';
+    document.getElementById('sourceTag').innerHTML = `数据来源：<b>地震诱发滑坡机理（汶川地震滑坡研究）</b>`;
+  } else if(mode==='body'){
+    document.getElementById('sceneTitle').textContent = '人体震害 · 三种姿势对比';
+    document.getElementById('sceneDesc').textContent = '同一场地震 · 三种选择 · 三种结局';
+    document.getElementById('step1Label').textContent = '本场景为人体（无材质选择）';
+    document.getElementById('materialRow').innerHTML = '<div id="bodyHint" style="color:var(--muted);font-size:calc(13.5px * var(--fs));padding:6px 0;line-height:1.8;">选择震级后触发地震：三个人会做出不同选择，结局也不一样</div>';
+    document.getElementById('legend').innerHTML = '<span><i style="background:#d9534f"></i>站立 · 错误</span><span><i style="background:#e8a13c"></i>乱跑 · 错误</span><span><i style="background:#4fae62"></i>伏地遮挡 · 正确</span><span><i style="background:#8a6a48"></i>遮挡桌</span>';
+    document.getElementById('hillInfo').classList.remove('on');
+    document.getElementById('goBtn').onclick = triggerBody;
+    // 三人并排，相机后撤把三个人一起框进来
+    controls.target.set(-90.15, 0.16, -0.35);
+    camera.position.set(-90.15, 2.30, 6.6);
+    focusShadow(-90, 0, 16);
+    bubbleLift = 2.7;
+    document.getElementById('floorPanel').classList.remove('on');
+    document.body.classList.remove('floor-on');
+    statusBar.innerHTML = '人体场景：选择震级后触发地震';
+    document.getElementById('sourceTag').innerHTML = `数据来源：<b>地震人员伤亡机理（人体受震害研究）</b>`;
+  }
+  hideBubble();
+  tlHide();
+  document.getElementById('tlList').innerHTML = '';
+  setTimeout(layoutSidePanels, 40);
+}
+
+function resetAll(){
+  debris.forEach(d=>scene.remove(d)); debris.length=0;
+  buildings.forEach(b=>{
+    b.rotation.set(0,0,0);
+    b.position.set(b.userData.baseX,0,0);
+    b.visible=true;
+    b.userData.pieces.forEach(p=>{
+      if(p.parent!==b) b.add(p);
+      p.position.set(p.userData.ox,p.userData.oy,p.userData.oz);
+      p.rotation.set(0,0,0);
+      p.userData.detached=false; p.visible=true;
+    });
+  });
+  if(hillBuilding){
+    hillBuilding.rotation.set(0,0,0);
+    hillBuilding.position.set(0,0,0);
+    hillBuilding.visible=true;
+    // 恢复表层坡体（slopeGroup）的位置和旋转
+    if(hillBuilding.userData.slopeGroup){
+      const sg = hillBuilding.userData.slopeGroup;
+      sg.position.set(0,0,0);
+      sg.rotation.set(0,0,0);
+    }
+    hillBuilding.userData.pieces.forEach(p=>{
+      if(p.parent!==hillBuilding.userData.slopeGroup) hillBuilding.userData.slopeGroup.add(p);
+      p.position.set(p.userData.ox,p.userData.oy,p.userData.oz);
+      p.rotation.set(0,0,0);
+      p.userData.detached=false; p.visible=true;
+    });
+    // 恢复树木（被滑坡推倒的重新种回坡面）
+    hillTrees.forEach(tr=>{
+      const u = tr.userData;
+      if(tr.parent !== hillBuilding) hillBuilding.add(tr);
+      tr.position.set(u.hx, hillHeight(u.hx, u.hz) - 0.06, u.hz);
+      tr.rotation.set(0,0,0);
+      u.fell = false;
+    });
+    // 恢复坡面颜色（抹去滑坡后壁）
+    if(hillTerrainGeo && hillBaseColors){
+      hillTerrainGeo.attributes.color.array.set(hillBaseColors);
+      hillTerrainGeo.attributes.color.needsUpdate = true;
+    }
+    hillScarFront = 0; hillDetachPtr = 0; hillDetachList = [];
+    // 清除扬尘与水花
+    dustParticles.forEach(p=>{ scene.remove(p); if(p.material) p.material.dispose(); });
+    dustParticles.length = 0;
+    splashRings.forEach(m=>{ scene.remove(m); if(m.geometry) m.geometry.dispose(); if(m.material) m.material.dispose(); });
+    splashRings.length = 0;
+  }
+  shaking={rc:false,brick:false,wood:false,hill:false};
+  // 复位城市环境（车辆、行人、城市楼群）
+  resetCityEnv();
+  collapseProgress={rc:0,brick:0,wood:0,hill:0};
+  bubblePhase=-1; hideBubble();
+  if(bodyBuilding) resetBody();
+  tlHide(); document.getElementById('tlList').innerHTML = '';
+  renderFloorPanel();
+  statusBar.innerHTML = currentScene==='house'?'已重置，请选择房屋材质':(currentScene==='body'?'已重置，选择震级后触发地震':'已重置，选择震级触发地震');
+}
+
+function animate(){
+  requestAnimationFrame(animate);
+  const now=performance.now();
+  const dt=0.016;
+  buildings.forEach(b=>{ const k=b.userData.type; if(shaking[k]) updateHouse(k,b,now); });
+  if(shaking.hill && hillBuilding) updateHill(hillBuilding, now);
+  if(currentScene==='hill'){
+    const hillInten = shaking.hill ? Math.max(0, Math.min(1, (shakeMag.hill-5)/7)) : 0;
+    updateRiver(now, !!shaking.hill, hillInten);
+  }
+  updateHillFx(dt);
+  updateCityEnv(now);
+
+  // 人体布娃娃物理更新（Verlet）
+  if(bodyBuilding && TRIO.active) updateBodyTrio(now);
+
+  if(bubbleTarget){
+    const wp=new THREE.Vector3(); bubbleTarget.getWorldPosition(wp);
+    wp.y += bubbleLift;
+    wp.project(camera);
+    let sx=(wp.x*0.5+0.5)*window.innerWidth;
+    let sy=(-wp.y*0.5+0.5)*window.innerHeight;
+    // 避让：不要压住顶部状态栏，也不要贴出画面
+    const sbEl=document.getElementById('statusBar');
+    const sbBottom=sbEl ? sbEl.getBoundingClientRect().bottom : 0;
+    const bw=bubble.offsetWidth||320, bh=bubble.offsetHeight||120;
+    sy=Math.max(sy, sbBottom+10+bh);
+    sy=Math.min(sy, window.innerHeight-14);
+    // 水平避让：不压住左侧时间轴 / 右侧楼层面板
+    let minX = bw/2 + 12, maxX = window.innerWidth - bw/2 - 12;
+    const tlEl = document.getElementById('timeline');
+    if(tlEl && tlEl.classList.contains('on')){
+      const tr = tlEl.getBoundingClientRect();
+      if(tr.height > 0) minX = Math.max(minX, tr.right + bw/2 + 10);
+    }
+    const fpEl = document.getElementById('floorPanel');
+    if(fpEl && fpEl.classList.contains('on')){
+      const fr = fpEl.getBoundingClientRect();
+      if(fr.height > 0) maxX = Math.min(maxX, fr.left - bw/2 - 10);
+    }
+    if(minX > maxX){ minX = bw/2 + 12; maxX = window.innerWidth - bw/2 - 12; }  // 空间不够时退回原逻辑
+    sx=Math.min(Math.max(sx, minX), maxX);
+    bubble.style.left=sx+'px'; bubble.style.top=sy+'px';
+  }
+  updateDebris(dt);
+  controls.update();
+  renderer.render(scene,camera);
+}
+
+hillBuilding = buildHill();
+hillGroup.add(hillBuilding);
+hillBuilding.userData.baseX = 0;
+hillBuilding.position.set(0,0,0);
+
+function setActiveSceneBtn(id){
+  ['sceneHouse','sceneHill','sceneBody'].forEach(k=>{
+    document.getElementById(k).classList.toggle('active', k===id);
+  });
+}
+document.getElementById('sceneHouse').addEventListener('click', ()=>{ setActiveSceneBtn('sceneHouse'); switchScene('house'); });
+document.getElementById('sceneHill').addEventListener('click', ()=>{ setActiveSceneBtn('sceneHill'); switchScene('hill'); });
+document.getElementById('sceneBody').addEventListener('click', ()=>{ setActiveSceneBtn('sceneBody'); switchScene('body'); });
+
+document.querySelectorAll('.mag-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    selectedMag=parseInt(btn.dataset.mag,10);
+    if(currentScene==='house'){
+      statusBar.innerHTML = `已选择 <b>${stateInfo[selectedMat].name}</b> + <b>${ROMAN[selectedMag-1]} 度</b>，点击"触发地震"`;
+    } else {
+      statusBar.innerHTML = `已选择 <b>${ROMAN[selectedMag-1]} 度</b>，点击"触发地震"`;
+    }
+  });
+});
+
+document.getElementById('goBtn').onclick = triggerHouse;
+document.getElementById('resetBtn').addEventListener('click', resetAll);
+
+buildMaterialRow();
+document.getElementById('sourceTag').innerHTML = `数据来源：<b>${stateInfo.rc.data.source}</b>`;
+
+// ==================================================================
+// 遥感数字影像模块
+//   以 30 m 栅格构建研究区 5 波段多光谱数据（B2/B3/B4/B8/B11），
+//   由地表端元混合 + 地形光照生成"数字图像"，
+//   再按地震动参数生成震后影像，做真彩色/假彩色/NDVI/分类/变化检测。
+// ==================================================================
+const RS_N = 300;
+const RS_EXT = 6000;                        // 影像覆盖 6.0 km × 6.0 km
+const RS_CELL = RS_EXT / RS_N;              // 空间分辨率 ≈ 30 m
+const RS_LON = 103.8421, RS_LAT = 31.3862;  // 研究区中心（龙门山断裂带中段，示意）
+
+// 地表端元光谱（B2 蓝 / B3 绿 / B4 红 / B8 近红外 / B11 短波红外）
+const RS_SPEC = [
+  [0.055, 0.043, 0.028, 0.010, 0.005],   // 0 水体
+  [0.030, 0.055, 0.034, 0.420, 0.140],   // 1 林地
+  [0.050, 0.082, 0.086, 0.300, 0.225],   // 2 草地灌丛
+  [0.044, 0.072, 0.068, 0.365, 0.195],   // 3 耕地
+  [0.168, 0.164, 0.156, 0.182, 0.246],   // 4 建设用地（混凝土屋顶：近中性暖灰）
+  [0.078, 0.112, 0.176, 0.246, 0.318],   // 5 裸土（红>绿>蓝，暖棕）
+  [0.086, 0.102, 0.134, 0.180, 0.250],   // 6 基岩
+  [0.238, 0.234, 0.224, 0.242, 0.276],   // 7 建筑废墟（混凝土碎块，反射率抬升）
+  [0.082, 0.110, 0.168, 0.206, 0.330],   // 8 滑坡新裸面（深棕、近红外低）
+  [0.092, 0.092, 0.090, 0.104, 0.128],   // 9 道路（水泥路面风化，中灰）
+  [0.235, 0.108, 0.082, 0.150, 0.225],   // 10 红瓦屋顶
+  [0.100, 0.106, 0.118, 0.112, 0.148]    // 11 蓝灰彩钢屋顶
+];
+const RS_CLS_NAME = ['水体','林地','草地','耕地','建设用地','裸地岩','损毁建筑','滑坡裸面'];
+const RS_CLS_COLOR = [[45,106,138],[46,100,55],[109,150,74],[176,162,80],[176,170,162],[179,167,143],[226,86,60],[206,164,110]];
+
+/* ---------- 基础噪声 ---------- */
+function rsHash(a, b, s){
+  const x = Math.sin(a*127.1 + b*311.7 + s*74.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+function rsNoise(x, y, s){
+  const xi = Math.floor(x), yi = Math.floor(y);
+  const xf = x - xi, yf = y - yi;
+  const u = xf*xf*(3-2*xf), v = yf*yf*(3-2*yf);
+  const a = rsHash(xi, yi, s), b = rsHash(xi+1, yi, s);
+  const c = rsHash(xi, yi+1, s), d = rsHash(xi+1, yi+1, s);
+  return (a*(1-u)+b*u)*(1-v) + (c*(1-u)+d*u)*v;
+}
+function rsFbm(x, y, oct, s){
+  let sum=0, amp=0.5, f=1;
+  for(let i=0;i<oct;i++){ sum += amp*rsNoise(x*f, y*f, s+i*13); f*=2; amp*=0.5; }
+  return sum;
+}
+
+/* ---------- 地形 / 地物 ---------- */
+function rsRiverV(u){ return 0.548 + 0.050*Math.sin(u*5.4+0.6) + 0.016*Math.sin(u*12.9+2.1); }
+
+function rsElevAt(u, v){
+  const ridge = Math.max(0, 0.68 - v) / 0.68;
+  let e = Math.pow(ridge, 1.45) * 0.95;
+  e += 0.40*Math.exp(-(((u-0.32)*(u-0.32))/0.016 + ((v-0.12)*(v-0.12))/0.026));
+  e += 0.26*Math.exp(-(((u-0.70)*(u-0.70))/0.020 + ((v-0.18)*(v-0.18))/0.030));
+  e += 0.06*rsFbm(u*7, v*7, 3, 11);
+  e += 0.125*rsFbm(u*11, v*11, 4, 41);   // 中频沟谷：支脉与冲沟，产生山脊阴影
+  e += 0.045*rsFbm(u*23, v*23, 3, 43);   // 次级冲沟
+  e += 0.014*rsFbm(u*42, v*42, 2, 61);   // 高频微地形，产生真实山体纹理
+  const rv = rsRiverV(u);
+  e *= 1 - 0.75*Math.exp(-((v-rv)*(v-rv))/0.00085);
+  const flat = Math.min(1, Math.max(0, (0.655 - v)/0.085));
+  e *= flat;
+  return Math.max(0.004, e);
+}
+
+const RS_TC = [0.505, 0.772], RS_TROT = -0.13;
+function rsTownLocal(u, v){
+  const dx = (u - RS_TC[0])*RS_EXT, dy = (v - RS_TC[1])*RS_EXT;
+  const c = Math.cos(RS_TROT), s = Math.sin(RS_TROT);
+  return [dx*c - dy*s, dx*s + dy*c];
+}
+// 城镇范围：噪声扰动的软边界（0 = 中心，1 = 建成区边缘）
+function rsTownField(u, v){
+  const p = rsTownLocal(u, v);
+  const wob = 1 + 0.34*(rsFbm(u*9, v*9, 2, 201) - 0.5) + 0.12*(rsFbm(u*33, v*33, 2, 211) - 0.5);
+  return Math.max(Math.abs(p[0])/(1010*wob), Math.abs(p[1])/(570*wob));
+}
+function rsInTown(u, v){
+  const f = rsTownField(u, v);
+  if(f < 1) return true;
+  // 城郊零星建筑（城乡结合部）
+  return f < 1.22 && rsFbm(u*44, v*44, 2, 303) > 0.56;
+}
+function rsStreet(lx, ly){
+  // 先用低频正弦扭曲坐标，路网不再是正交棋盘，而是随地形发展的城市街巷
+  const wx = lx + 26*Math.sin(ly*0.0125) + 9*Math.sin(ly*0.041);
+  const wy = ly + 26*Math.sin(lx*0.0108) + 9*Math.sin(lx*0.037);
+  const bx = ((wx % 152) + 152) % 152, by = ((wy % 164) + 164) % 164;
+  if(bx < 13 || by < 13) return true;              // 主干道
+  // 次干道：只在部分街区出现，宽窄不一
+  const sx = ((wx % 61) + 61) % 61, sy = ((wy % 67) + 67) % 67;
+  return (sx < 6 && rsFbm(lx*0.004, ly*0.004, 2, 88) > 0.46) ||
+         (sy < 6 && rsFbm(ly*0.004, lx*0.004, 2, 89) > 0.46);
+}
+function rsIsRoad(u, v){
+  return Math.abs(v - (rsRiverV(u) + 0.033)) < 0.0030;   // 滨河公路
+}
+
+function rsClassAt(u, v, e){
+  const rv = rsRiverV(u);
+  const halfW = 0.0155 + 0.0040*rsFbm(u*9, v*9, 2, 5) + 0.0022*rsFbm(u*27, v*27, 2, 7);
+  const dw = Math.abs(v - rv)/halfW;
+  if(dw < 1.42 && e < 0.05){
+    // 岸边像元按距离概率划为水体，形成自然的不规则水陆边界
+    if(dw < 0.88) return 0;
+    const px = Math.round(u*RS_N), py = Math.round(v*RS_N);
+    if(rsHash(px, py, 91) < (1.42 - dw)/0.54) return 0;
+  }
+  if(rsIsRoad(u, v)) return 4;
+  if(rsInTown(u, v)){
+    if(rsTownField(u, v) < 1 && rsFbm(u*21, v*21, 2, 401) > 0.72) return 2;  // 城市绿地
+    return 4;
+  }
+  // 河谷零散村落（川西山区典型的沿河聚落）
+  if(Math.abs(v - rv) < 0.055 && e < 0.05 && rsHash(Math.round(u*26), Math.round(v*30), 123) > 0.87) return 4;
+  // 类别边界加入噪声扰动，避免出现等高线一样的平滑分界
+  if(e > 1.04 + 0.18*(rsFbm(u*11, v*11, 2, 701) - 0.5)) return 5;   // 山顶裸岩
+  if(e > 0.56 + 0.14*(rsFbm(u*13, v*13, 2, 703) - 0.5)) return 2;   // 高山草甸
+  if(e > 0.17 + 0.05*(rsFbm(u*9,  v*9,  2, 705) - 0.5)) return 1;   // 林地
+  if(rsFbm(u*16, v*16, 2, 31) > 0.62) return 1;
+  return 3;                   // 耕地
+}
+
+// 像元内地物丰度（线性混合模型）
+const rsW = new Float32Array(12);
+const rsTmp5 = new Float32Array(5);
+function rsWeights(cls, u, v, i, j){
+  rsW.fill(0);
+  const n1 = rsHash(i*0.73, j*0.73, 3);
+  if(cls === 0){ rsW[0] = 1; }
+  else if(cls === 1){ rsW[1] = 0.74 + 0.18*n1; rsW[2] = 0.12; rsW[5] = 0.10; }
+  else if(cls === 2){ rsW[2] = 0.52 + 0.12*n1; rsW[1] = 0.22; rsW[5] = 0.24; }
+  else if(cls === 3){
+    // 以田块为单位区分作物状态：收割后裸地 / 青苗地 / 一般耕地，
+    // 这是真实农业区在 20 m 影像上最明显的斑块特征
+    const mx = u*RS_EXT, my = v*RS_EXT;
+    // 田块：规则地块（略带走向偏转），块内再叠细节纹理，避免纯色马赛克
+    const c = Math.cos(0.10), sn = Math.sin(0.10);
+    const rx = mx*c - my*sn, ry = mx*sn + my*c;
+    const bx = Math.floor(rx/116), by = Math.floor(ry/86);
+    const bh = rsHash(bx, by, 55);
+    const t = 0.93 + 0.14*rsFbm(u*95, v*95, 2, 66);
+    if(bh < 0.24){ rsW[3] = 0.26*t; rsW[5] = (0.48 + 0.10*n1)*t; rsW[2] = 0.16; }        // 收割后裸地
+    else if(bh < 0.52){ rsW[3] = (0.66 + 0.16*n1)*t; rsW[2] = 0.24*t; rsW[5] = 0.08; }   // 青苗地
+    else { rsW[3] = (0.50 + 0.22*n1)*t; rsW[5] = 0.24*t; rsW[2] = 0.18; }                // 一般耕地
+    // 田块边界（田埂/沟渠），30 m 像元内的亚像元混合
+    if(((u*RS_EXT) % 132) < 5 || ((v*RS_EXT) % 96) < 5){
+      rsW[3] *= 0.55; rsW[5] += 0.30; rsW[1] += 0.15;
+    }
+  }
+  else if(cls === 4){
+    if(rsIsRoad(u, v)){ rsW[9] = 0.88; rsW[5] = 0.12; }
+    else {
+      const p = rsTownLocal(u, v);
+      if(rsStreet(p[0], p[1])){ rsW[9] = 0.82; rsW[5] = 0.18; }
+      else {
+        // 以街区为单位决定建筑密度与屋顶主色调：同一街区色调相近，街区之间有路网分隔
+        const bx = Math.floor(p[0]/152), by = Math.floor(p[1]/164);
+        const bh = rsHash(bx, by, 171);            // 街区主色调
+        const dens = 0.52 + 0.40*rsHash(bx, by, 173);  // 建筑密度
+        if(rsHash(i, j, 61) > dens*0.12){
+          const lit = 0.88 + 0.20*rsHash(i, j, 97);
+          if(bh < 0.15){ rsW[10] = (0.66 + 0.14*n1)*lit; rsW[9] = 0.12; rsW[5] = 0.12; rsW[2] = 0.10; }
+          else if(bh < 0.25){ rsW[11] = (0.64 + 0.12*n1)*lit; rsW[9] = 0.14; rsW[5] = 0.12; rsW[2] = 0.10; }
+          else { rsW[4] = (0.70 + 0.16*n1)*lit; rsW[9] = 0.08; rsW[5] = 0.10; rsW[2] = 0.12; }
+        }
+        else { rsW[4] = 0.24; rsW[5] = 0.36; rsW[2] = 0.40; }   // 院落/空隙/行道树
+      }
+    }
+  }
+  else { rsW[6] = 0.45 + 0.15*n1; rsW[5] = 0.45; rsW[2] = 0.10; }
+}
+function rsCompose(shade, jitter){
+  rsTmp5.fill(0);
+  let sw = 0;
+  for(let m=0;m<12;m++){
+    const w = rsW[m]; if(w <= 0) continue;
+    sw += w;
+    const sp = RS_SPEC[m];
+    for(let b=0;b<5;b++) rsTmp5[b] += w*sp[b];
+  }
+  if(sw <= 0) sw = 1;
+  for(let b=0;b<5;b++) rsTmp5[b] = Math.max(0, rsTmp5[b]/sw*shade + jitter);
+  return rsTmp5;
+}
+
+let rsPreB=null, rsPostB=null, rsPreNDVI=null, rsPostNDVI=null;
+let rsBrightPre=null, rsBrightPost=null, rsElevA=null, rsShadeA=null;
+let rsCls=null, rsClsPost=null, rsScarF=null, rsRubbleF=null;
+let rsDmgLv=null;            // 每像元损毁等级 0 完好 / 1 轻微 / 2 部分 / 3 完全
+let rsHeatOn=false, rsHeatCv=null;   // 损毁热力图图层
+let rsCache = {};
+let rsMode='tc', rsSplit=0.5, rsGrid=true, rsHover=null;
+let rsMag=null, rsIsPreview=true;
+let rsSweep=false, rsSweepDir=1;
+let rsStat = { change:0, changeA:0, changePct:0, slideA:0, rubA:0, ndviPre:0, ndviPost:0 };
+
+function rsShadeAt(i, j){
+  const cl = (x)=>Math.min(RS_N-1, Math.max(0, x));
+  const e = (x,y)=>rsElevA[cl(y)*RS_N + cl(x)];
+  const dzdx = (e(i+1,j) - e(i-1,j)) / (2*RS_CELL) * 1200;
+  const dzdy = (e(i,j+1) - e(i,j-1)) / (2*RS_CELL) * 1200;
+  const s = 0.70 + 1.15*(-dzdx*0.62 - dzdy*0.62);
+  return Math.max(0.42, Math.min(1.22, s));
+}
+
+function rsBuildPre(){
+  const n = RS_N*RS_N;
+  rsElevA = new Float32Array(n);
+  rsShadeA = new Float32Array(n);
+  rsCls = new Uint8Array(n);
+  rsPreB = new Float32Array(n*5);
+  rsPreNDVI = new Float32Array(n);
+  rsBrightPre = new Float32Array(n);
+  for(let j=0;j<RS_N;j++) for(let i=0;i<RS_N;i++)
+    rsElevA[j*RS_N+i] = rsElevAt((i+0.5)/RS_N, (j+0.5)/RS_N);
+
+  let sumNDVI = 0;
+  for(let j=0;j<RS_N;j++) for(let i=0;i<RS_N;i++){
+    const k = j*RS_N+i, u = (i+0.5)/RS_N, v = (j+0.5)/RS_N;
+    rsShadeA[k] = rsShadeAt(i, j);
+    const cls = rsClassAt(u, v, rsElevA[k]);
+    rsCls[k] = cls;
+    rsWeights(cls, u, v, i, j);
+    // 树冠/地表纹理：水体保持平滑，其余像元做斑驳调制
+    const tex = (cls === 0) ? 1 : 0.86 + 0.30*rsFbm(u*58, v*58, 3, 77);
+    const c = rsCompose(rsShadeA[k]*tex, (rsHash(i,j,17)-0.5)*0.010);
+    for(let b=0;b<5;b++) rsPreB[k*5+b] = c[b];
+    rsPreNDVI[k] = (c[3]-c[2])/(c[3]+c[2]+1e-6);
+    rsBrightPre[k] = (c[0]+c[1]+c[2])/3;
+    sumNDVI += rsPreNDVI[k];
+  }
+  rsStat.ndviPre = sumNDVI/n;
+  rsClsPost = Uint8Array.from(rsCls);
+  rsScarF = new Float32Array(n);
+  rsRubbleF = new Float32Array(n);
+  rsCache = {};
+}
+
+// 震害参数（与三维场景共用同一套易损性矩阵）
+function rsTownDamage(mag){
+  const p = (stateInfo.brick.data.collapseProb[mag-1] || 0);
+  return Math.min(0.95, p*0.85);
+}
+function rsSlideArea(mag){
+  return mag < 7 ? 0 : 0.030*Math.pow(1.95, mag-7);
+}
+function rsDamageField(u, v){
+  const d = Math.abs((v - 0.596) - 0.34*(u - 0.5));
+  return Math.max(0.14, Math.min(1, 1 - d/0.42));
+}
+function rsPGA(mag){ return 0.12*Math.pow(2, mag-6); }
+
+function rsBuildPost(mag, focus){
+  if(!rsPreB) rsBuildPre();
+  rsMag = mag;
+  const n = RS_N*RS_N;
+  const dmgP = rsTownDamage(mag) * (focus === 'hill' ? 0.55 : 1);
+  const slideA = rsSlideArea(mag) * (focus === 'house' ? 0.6 : 1);
+  const Apix = slideA*1e6/(RS_CELL*RS_CELL);
+  let rx = 0, rz = 0;
+  // 滑坡平面形态：顺坡向拉长的椭圆（长约 2.5 倍宽），面积由震级反算
+  if(Apix > 1){ rx = Math.sqrt(Apix/(Math.PI*0.40))/RS_N; rz = rx/0.40; }
+  const u0 = 0.618, v0 = 0.330, ca = Math.cos(0.16), sa = Math.sin(0.16);
+
+  rsPostB = new Float32Array(n*5);
+  rsPostNDVI = new Float32Array(n);
+  rsBrightPost = new Float32Array(n);
+  rsDmgLv = new Uint8Array(n);
+  rsClsPost = Uint8Array.from(rsCls);
+  rsScarF.fill(0); rsRubbleF.fill(0);
+  let scarPix = 0, rubPix = 0, changePix = 0, sumPre = 0, sumPost = 0;
+
+  for(let j=0;j<RS_N;j++) for(let i=0;i<RS_N;i++){
+    const k = j*RS_N+i, u = (i+0.5)/RS_N, v = (j+0.5)/RS_N;
+    rsWeights(rsCls[k], u, v, i, j);
+
+    // —— 1. 滑坡：坡面植被剥离，露出土体/基岩 ——
+    let scar = 0, eyN = 0;
+    if(rx > 0 && v < 0.58){
+      const dx = u-u0, dy = v-v0;
+      const ex = (dx*ca + dy*sa)/rx, ey = (-dx*sa + dy*ca)/rz;
+      eyN = ey;
+      let d = Math.hypot(ex, ey);
+      d *= 1 + 0.32*(rsFbm(u*72, v*72, 2, 91) - 0.5);          // 边界不规则
+      if(d < 1.12){
+        let t = Math.min(1, Math.max(0, (1-d)*4.0));
+        // 沿坡向的冲沟 / 堆积条纹
+        t *= 0.78 + 0.34*(0.5 + 0.5*Math.sin((u-u0)*150 + 3.0*Math.sin((v-v0)*11)));
+        scar = Math.min(1, t*(0.72 + 0.28*rsHash(i,j,53)));
+      }
+    }
+    if(scar > 0.05 && rsElevA[k] > 0.04){
+      const veg = rsW[1] + rsW[2] + rsW[3];
+      rsW[1] *= (1-scar); rsW[2] *= (1-scar); rsW[3] *= (1-scar);
+      let soilW = 0.62, rockW = 0.38;
+      if(eyN < -0.55){ soilW = 0.28; rockW = 0.72; }        // 后壁陡坎：基岩裸露
+      else if(eyN > 0.35){ soilW = 0.88; rockW = 0.12; }    // 前缘：松散堆积体
+      rsW[8] += veg*scar*soilW;
+      rsW[6] += veg*scar*rockW;
+      rsScarF[k] = scar;
+      if(scar > 0.45){ scarPix++; rsClsPost[k] = 7; }
+    }
+
+    // —— 2. 建筑倒塌：屋顶反射率升高、近红外抬升（废墟）——
+    const builtW = rsW[4] + rsW[10] + rsW[11];
+    if(dmgP > 0.001 && builtW > 0.15){
+      // 以"街区"为单位的成片损毁：同一街区建筑年代、质量相近，震害往往整片发生
+      // ——这样变化检测图上才是成片红橙色斑块，而不是零散噪点
+      const pl = rsTownLocal(u, v);
+      const blkX = Math.floor(pl[0]/152), blkY = Math.floor(pl[1]/164);
+      const blkP = 0.40 + 0.95*rsHash(blkX, blkY, 181);
+      const hit = dmgP*rsDamageField(u,v)*blkP*3.6;
+      // 受灾街区：八成建筑像元整体转废墟（成片）；未受灾：只零星破损
+      const pDestroy = rsHash(blkX, blkY, 183) < Math.min(0.95, hit) ? 0.92 : 0.05;
+      if(rsHash(i,j,71) < pDestroy){
+        const kept = builtW*0.16;
+        rsW[4] *= 0.16; rsW[10] *= 0.16; rsW[11] *= 0.16;
+        rsW[7] += builtW - kept;
+        rsW[5] += kept*0.16;
+        rsRubbleF[k] = 0.84;
+        rubPix++;
+        rsClsPost[k] = 6;
+      }
+    }
+
+    const tex = (rsCls[k] === 0) ? 1 : 0.86 + 0.30*rsFbm(u*58, v*58, 3, 77);
+    const c = rsCompose(rsShadeA[k]*tex, (rsHash(i,j,19)-0.5)*0.010);
+    // —— 3. 河流浊度升高（滑坡泥沙入河）——
+    if(rsW[0] > 0.5 && slideA > 0.005){
+      const turb = Math.min(1, slideA/0.16);
+      c[2] += 0.030*turb; c[1] += 0.012*turb; c[3] -= 0.004*turb;
+    }
+    for(let b=0;b<5;b++) rsPostB[k*5+b] = c[b];
+    rsPostNDVI[k] = (c[3]-c[2])/(c[3]+c[2]+1e-6);
+    rsBrightPost[k] = (c[0]+c[1]+c[2])/3;
+
+    const dn = rsPostNDVI[k] - rsPreNDVI[k];
+    const db = rsBrightPost[k] - rsBrightPre[k];
+    if(Math.abs(dn) > 0.08 || db > 0.05) changePix++;
+    // 损毁等级：亮度骤增（屋顶变废墟/裸面）+ NDVI 骤降（植被被剥掉）
+    let lv = 0;
+    if(rsRubbleF[k] > 0.3 || rsScarF[k] > 0.3) lv = 3;
+    else if(db > 0.14 || dn < -0.26) lv = 3;
+    else if(db > 0.06 || dn < -0.14) lv = 2;
+    else if(db > 0.03 || Math.abs(dn) > 0.06) lv = 1;
+    rsDmgLv[k] = lv;
+    sumPre += rsPreNDVI[k]; sumPost += rsPostNDVI[k];
+  }
+
+  const cellKm2 = RS_CELL*RS_CELL/1e6;
+  rsStat.slideA = scarPix*cellKm2;
+  rsStat.rubA = rubPix*cellKm2;
+  rsStat.change = changePix;
+  rsStat.changeA = changePix*cellKm2;
+  rsStat.changePct = changePix/n*100;
+  rsStat.ndviPre = sumPre/n;
+  rsStat.ndviPost = sumPost/n;
+  rsCache = {};
+  if(rsHeatOn) rsBuildHeatCv();
+}
+
+/* ---------- 影像渲染 ---------- */
+function rsTone(v, gain, gamma, off){
+  const g = (gain === undefined ? 2.80 : gain);
+  const gm = (gamma === undefined ? 0.52 : gamma);
+  const o = (off === undefined ? 0 : off);
+  return Math.pow(Math.min(1, Math.max(0, (v + o)*g)), gm)*255;
+}
+function rsNdviColor(n){
+  const st = [[-0.25,[32,72,104]],[-0.02,[110,112,96]],[0.12,[168,158,104]],
+              [0.26,[150,180,78]],[0.42,[88,150,58]],[0.62,[40,104,44]],[0.88,[18,68,32]]];
+  if(n <= st[0][0]) return st[0][1];
+  for(let i=0;i<st.length-1;i++){
+    if(n <= st[i+1][0]){
+      const t = (n-st[i][0])/(st[i+1][0]-st[i][0]);
+      return [st[i][1][0]+(st[i+1][1][0]-st[i][1][0])*t,
+              st[i][1][1]+(st[i+1][1][1]-st[i][1][1])*t,
+              st[i][1][2]+(st[i+1][1][2]-st[i][1][2])*t];
+    }
+  }
+  return st[st.length-1][1];
+}
+function rsChangeColor(k){
+  const dn = rsPostNDVI[k] - rsPreNDVI[k];
+  const db = rsBrightPost[k] - rsBrightPre[k];
+  if(rsPreNDVI[k] < -0.08 && dn < -0.10) return [74,146,200];  // 水体浊度升高
+  if(dn < -0.18) return [214,72,52];                 // 植被 → 裸地（滑坡）
+  if(db > 0.045 && dn > -0.10) return [232,161,60];  // 建筑 → 废墟
+  if(dn > 0.14) return [70,150,90];                  // 植被恢复
+  if(dn < -0.10) return [158,98,72];
+  // 无变化区域：保留震前真彩色（压暗），这样既看得出地物，又能一眼分出变化斑块
+  return [rsTone(rsPreB[k*5+2])*0.50 + 10,
+          rsTone(rsPreB[k*5+1])*0.50 + 10,
+          rsTone(rsPreB[k*5+0])*0.50 + 10];
+}
+function rsCanvasFor(mode, which){
+  const key = mode + '|' + which;
+  if(rsCache[key]) return rsCache[key];
+  const cv = document.createElement('canvas');
+  cv.width = RS_N; cv.height = RS_N;
+  const cx = cv.getContext('2d');
+  const img = cx.createImageData(RS_N, RS_N);
+  const d = img.data;
+  const bands = (which === 'pre' ? rsPreB : rsPostB);
+  const ndvi = (which === 'pre' ? rsPreNDVI : rsPostNDVI);
+  const cls = (which === 'pre' ? rsCls : rsClsPost);
+  if(!bands) return null;
+  for(let k=0;k<RS_N*RS_N;k++){
+    let r=0, g=0, b=0;
+    if(mode === 'tc'){
+      r = rsTone(bands[k*5+2]); g = rsTone(bands[k*5+1]); b = rsTone(bands[k*5+0]);
+    } else if(mode === 'fc'){
+      r = rsTone(bands[k*5+3], 1.55, 0.60, 0.002);
+      g = rsTone(bands[k*5+2], 2.30, 0.60, 0.002);
+      b = rsTone(bands[k*5+1], 2.30, 0.60, 0.002);
+    } else if(mode === 'ndvi'){
+      const c = rsNdviColor(ndvi[k]); r=c[0]; g=c[1]; b=c[2];
+    } else if(mode === 'cls'){
+      const c = RS_CLS_COLOR[cls[k]]; r=c[0]; g=c[1]; b=c[2];
+    } else {
+      const c = rsChangeColor(k); r=c[0]; g=c[1]; b=c[2];
+    }
+    d[k*4] = r; d[k*4+1] = g; d[k*4+2] = b; d[k*4+3] = 255;
+  }
+  cx.putImageData(img, 0, 0);
+  rsCache[key] = cv;
+  return cv;
+}
+
+let rsStageEl=null, rsCanvasEl=null;
+// 影像上的引线标注：圈住变化点，用一句话说明"这里是什么"
+function rsAnno(ctx, x, y, txt, col, W){
+  ctx.save();
+  ctx.font = '700 22px "PingFang SC","Microsoft YaHei",sans-serif';
+  const tw = ctx.measureText(txt).width + 26;
+  let bx = x + 52, by = y - 56;
+  if(bx + tw > W - 14){ bx = x - 40 - tw; }
+  if(by < 12) by = y + 28;
+  ctx.strokeStyle = col; ctx.lineWidth = 1.8;
+  ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(bx + (bx > x ? 0 : tw), by + 16); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI*2); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x, y, 3.5, 0, Math.PI*2); ctx.fillStyle = col; ctx.fill();
+  ctx.fillStyle = 'rgba(10,16,22,0.84)';
+  ctx.beginPath();
+  if(ctx.roundRect){ ctx.roundRect(bx - 2, by, tw, 32, 6); ctx.fill(); }
+  else ctx.fillRect(bx - 2, by, tw, 32);
+  ctx.strokeStyle = col; ctx.lineWidth = 1; ctx.stroke();
+  ctx.fillStyle = col; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  ctx.fillText(txt, bx + 10, by + 16.5);
+  ctx.restore();
+}
+
+// 损毁热力图图层：按像元损毁等级着色，叠在影像之上
+const RS_HEAT_COL = [
+  null,
+  [232, 205, 80, 0.40],   // 轻微
+  [232, 150, 60, 0.54],   // 部分损毁
+  [222, 72, 62, 0.62]     // 完全损毁
+];
+function rsBuildHeatCv(){
+  if(!rsDmgLv) { rsHeatCv = null; return; }
+  const cv = document.createElement('canvas');
+  cv.width = RS_N; cv.height = RS_N;
+  const c2 = cv.getContext('2d');
+  const img = c2.createImageData(RS_N, RS_N);
+  for(let k=0;k<rsDmgLv.length;k++){
+    const lv = rsDmgLv[k]; if(!lv) continue;
+    const col = RS_HEAT_COL[lv]; if(!col) continue;
+    const o = k*4;
+    img.data[o] = col[0]; img.data[o+1] = col[1]; img.data[o+2] = col[2];
+    img.data[o+3] = Math.round(col[3]*255);
+  }
+  c2.putImageData(img, 0, 0);
+  rsHeatCv = cv;
+}
+
+function rsRender(){
+  if(!rsCanvasEl) return;
+  const ctx = rsCanvasEl.getContext('2d');
+  const W = rsCanvasEl.width, H = rsCanvasEl.height;
+  const pre = rsCanvasFor(rsMode, 'pre');
+  const post = rsCanvasFor(rsMode, 'post') || pre;
+  if(!pre) return;
+  ctx.imageSmoothingEnabled = true;
+  ctx.clearRect(0,0,W,H);
+  ctx.drawImage(pre, 0, 0, W, H);
+  const sx = Math.round(rsSplit*W);
+  if(sx < W){
+    ctx.save();
+    ctx.beginPath(); ctx.rect(sx, 0, W-sx, H); ctx.clip();
+    ctx.drawImage(post, 0, 0, W, H);
+    ctx.restore();
+  }
+
+  // 损毁热力图叠加
+  if(rsHeatOn){
+    if(!rsHeatCv) rsBuildHeatCv();
+    if(rsHeatCv){
+      ctx.save();
+      ctx.imageSmoothingEnabled = true;
+      ctx.globalAlpha = 0.9;
+      ctx.drawImage(rsHeatCv, 0, 0, W, H);
+      ctx.restore();
+      // 左上角提示当前图层
+      ctx.font = '700 20px "PingFang SC","Microsoft YaHei",sans-serif';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      const t = '损毁热力图 · 红=完全 橙=部分 黄=轻微';
+      const tw = ctx.measureText(t).width + 26;
+      ctx.fillStyle = 'rgba(10,16,22,0.80)';
+      if(ctx.roundRect){ ctx.beginPath(); ctx.roundRect(20, 66, tw, 38, 8); ctx.fill(); }
+      else ctx.fillRect(20, 66, tw, 38);
+      ctx.fillStyle = '#ffd9a8'; ctx.fillText(t, 33, 86);
+    }
+  }
+
+  // 公里网
+  if(rsGrid){
+    const step = W*(1000/RS_EXT);
+    ctx.strokeStyle = 'rgba(255,255,255,0.16)';
+    ctx.lineWidth = 1;
+    ctx.font = '500 20px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.46)';
+    for(let x=step; x<W; x+=step){
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+      ctx.fillText((x/step).toFixed(0)+'km', x+4, H-8);
+    }
+    for(let y=step; y<H; y+=step){
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    }
+  }
+
+  // 分割线
+  if(sx > 4 && sx < W-4){
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(sx, 0); ctx.lineTo(sx, H); ctx.stroke();
+    ctx.fillStyle = 'rgba(232,161,60,0.95)';
+    ctx.beginPath(); ctx.arc(sx, H/2, 24, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle = '#1a1400';
+    ctx.font = '700 21px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('⇆', sx, H/2);
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
+    ctx.font = '700 21px "PingFang SC","Microsoft YaHei",sans-serif';
+    ctx.fillText('拖动对比', sx, H/2 + 50);
+    ctx.restore();
+  }
+
+  // 震前 / 震后 标签
+  ctx.font = '700 30px "PingFang SC","Microsoft YaHei",sans-serif';
+  ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+  const chip = (txt, x, y, bg)=>{
+    const w = ctx.measureText(txt).width + 32;
+    ctx.fillStyle = bg; ctx.beginPath();
+    if(ctx.roundRect) { ctx.roundRect(x, y-23, w, 46, 9); ctx.fill(); }
+    else ctx.fillRect(x, y-23, w, 46);
+    ctx.fillStyle = '#f2ede4'; ctx.fillText(txt, x+16, y+1);
+  };
+  chip(rsMode === 'chg' ? '震前分类基准' : '震 前', 20, 34, 'rgba(10,16,22,0.78)');
+  const postTxt = rsIsPreview ? '震后（预览）' : '震 后';
+  ctx.font = '700 20px "PingFang SC","Microsoft YaHei",sans-serif';
+  const pw = ctx.measureText(postTxt).width + 32;
+  chip(postTxt, W-pw-20, 34, 'rgba(217,79,58,0.86)');
+
+  // ---- 震后重点变化标注 ----
+  if(sx > 6){
+    const anns = [];
+    if(rsStat.slideA > 0.002) anns.push([0.618, 0.330, '滑坡 ' + rsStat.slideA.toFixed(2) + ' km²', '#ff8a72']);
+    if(rsStat.rubA > 0.002)   anns.push([0.556, 0.766, '镇区损毁 ' + (rsTownDamage(rsMag)*100).toFixed(0) + '%', '#ffc46b']);
+    anns.push([0.735, rsRiverV(0.735), '河水变浑', '#84b9e2']);
+    anns.forEach(a=>{
+      const ax = a[0]*W, ay = a[1]*H;
+      if(ax < sx + 30) return;          // 只在震后一侧标注
+      rsAnno(ctx, ax, ay, a[2], a[3], W);
+    });
+  }
+
+  // 指北针
+  const nx = W-54, ny = H-108;
+  ctx.save();
+  ctx.fillStyle = 'rgba(10,16,22,0.6)';
+  ctx.beginPath(); ctx.arc(nx, ny, 38, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#f2ede4';
+  ctx.beginPath(); ctx.moveTo(nx, ny-26); ctx.lineTo(nx-11, ny+12); ctx.lineTo(nx, ny+4); ctx.lineTo(nx+11, ny+12); ctx.closePath(); ctx.fill();
+  ctx.font = '700 17px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('N', nx, ny+25);
+  ctx.restore();
+
+  // 比例尺
+  const barW = W*(1000/RS_EXT);
+  ctx.save();
+  ctx.strokeStyle = '#f2ede4'; ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(28, H-46); ctx.lineTo(28+barW, H-46);
+  ctx.moveTo(28, H-54); ctx.lineTo(28, H-38);
+  ctx.moveTo(28+barW, H-54); ctx.lineTo(28+barW, H-38); ctx.stroke();
+  ctx.fillStyle = '#f2ede4';
+  ctx.font = '700 20px sans-serif'; ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+  ctx.fillText('0 ————— 1 km', 28, H-64);
+  ctx.restore();
+
+  // 框选区域
+  if(rsRect){
+    const x0 = rsRect.i0/RS_N*W, y0 = rsRect.j0/RS_N*H;
+    const x1 = (rsRect.i1+1)/RS_N*W, y1 = (rsRect.j1+1)/RS_N*H;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(232,161,60,0.95)'; ctx.lineWidth = 2;
+    ctx.setLineDash([10, 7]);
+    ctx.strokeRect(x0, y0, x1-x0, y1-y0);
+    ctx.setLineDash([]);
+    const L = Math.min(26, (x1-x0)*0.26);
+    ctx.lineWidth = 5;
+    [[x0,y0,1,1],[x1,y0,-1,1],[x0,y1,1,-1],[x1,y1,-1,-1]].forEach(function(c){
+      ctx.beginPath(); ctx.moveTo(c[0]+c[2]*L, c[1]); ctx.lineTo(c[0], c[1]); ctx.lineTo(c[0], c[1]+c[3]*L); ctx.stroke();
+    });
+    ctx.restore();
+  }
+
+  // 十字丝
+  if(rsHover){
+    const hx = (rsHover.i+0.5)/RS_N*W, hy = (rsHover.j+0.5)/RS_N*H;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(232,161,60,0.85)'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(hx, hy, 9, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(hx-20, hy); ctx.lineTo(hx-11, hy);
+    ctx.moveTo(hx+11, hy); ctx.lineTo(hx+20, hy);
+    ctx.moveTo(hx, hy-20); ctx.lineTo(hx, hy-11);
+    ctx.moveTo(hx, hy+11); ctx.lineTo(hx, hy+20); ctx.stroke();
+    ctx.restore();
+  }
+}
+
+/* ---------- 侧栏信息 ---------- */
+function rsKV(k, v, hot){
+  return `<div class="rs-kv"><span>${k}</span><b>${hot ? `<em>${v}</em>` : v}</b></div>`;
+}
+
+// 每个专题"看什么、颜色什么意思"
+const RS_MODE_INFO = {
+  tc:  ['真彩色合成', 'B4-B3-B2 三波段合成，人眼所见：绿色是植被、灰白是屋顶道路、深蓝是河水。先看整体外观，再对比震后哪里变了。'],
+  fc:  ['标准假彩色', 'B8-B4-B3 合成，近红外代替红光：健康植被变红色，水体城镇偏青灰。植被被剥掉（滑坡），红色就变褐色。'],
+  ndvi:['NDVI 植被指数', '(近红外 − 红) / (近红外 + 红)。绿得越深植被越好，越黄褐越接近裸土。震后成片变黄褐说明植被被破坏。'],
+  cls: ['地物分类', '把每个像元归到 8 类地物。重点看两种新增颜色：橙色「损毁建筑」出现在镇上，浅褐「滑坡裸面」出现在山坡。'],
+  chg: ['变化检测', '震前震后逐像元比较：红=植被变裸地（滑坡）、橙=建筑变废墟、蓝=河水变浑、绿=植被恢复。出现什么颜色，就对应一种灾情。']
+};
+
+// 用大白话把统计翻译成"发生了什么"
+function rsConclusion(){
+  if(!rsMag) return '';
+  const n = RS_N*RS_N;
+  const apx = (RS_CELL*RS_CELL)/1e6;          // 单像元面积 km²
+  let rubPix=0, slidePix=0, vegPix=0, townPix=0, siltPix=0;
+  for(let k=0;k<n;k++){
+    const a = rsCls[k], b = rsClsPost ? rsClsPost[k] : a;
+    if(b === 6) rubPix++;
+    if(b === 7) slidePix++;
+    if((a===1||a===2||a===3) && (b===5||b===6||b===7)) vegPix++;
+    if(a === 4) townPix++;
+    if(a === 0 && rsPostNDVI && rsPostNDVI[k] < rsPreNDVI[k] - 0.04) siltPix++;
+  }
+  // 处数：一处院落约 9 个 30m 像元；一处滑坡约 26 个像元
+  const rubN = Math.round(rubPix/9);
+  const slideN = Math.round(slidePix/26);
+  const td = rsTownDamage(rsMag)*100;
+  const dND = rsStat.ndviPost - rsStat.ndviPre;
+  const L = [];
+  L.push(`<span class="line"><b>① 建筑</b> 全毁 <b>${rubN}</b> 处 / <b>${(rubPix*apx).toFixed(2)} km²</b>，集中于中部老城</span>`);
+  L.push(slideN > 0
+    ? `<span class="line"><b>② 地质</b> 滑坡 <b>${slideN}</b> 处 / <b>${(slidePix*apx).toFixed(2)} km²</b>，在东侧山坡</span>`
+    : `<span class="line"><b>② 地质</b> <span class="dim">未见成规模滑坡</span></span>`);
+  L.push(`<span class="line"><b>③ 水体</b> 河道浊度升高 <b>${(siltPix*apx).toFixed(2)} km²</b></span>`);
+  L.push(`<span class="line"><b>④ 植被</b> NDVI <b>${rsStat.ndviPre.toFixed(2)}→${rsStat.ndviPost.toFixed(2)}</b>（Δ${dND.toFixed(2)}），退化 <b>${(vegPix*apx).toFixed(2)} km²</b></span>`);
+  L.push(`<span class="line dim" style="margin-top:3px">按 ${ROMAN[rsMag-1]} 度解译：震害沿河谷与老城区集中，镇区平均损毁率 ${td.toFixed(0)}%。</span>`);
+  return L.join('');
+}
+
+function rsUpdateUI(){
+  const noteEl = document.querySelector('.conc-note');
+  if(!rsMag){
+    if(noteEl) noteEl.style.display = 'none';
+    document.getElementById('rsConc').innerHTML =
+      '<span class="line dim">拖动右上角「烈度」滑块，或返回场景触发地震后，这里会给出解译结论。</span>';
+    return;
+  }
+  if(noteEl) noteEl.style.display = '';
+  const pg = rsPGA(rsMag);
+  const mi = RS_MODE_INFO[rsMode] || RS_MODE_INFO.tc;
+  document.getElementById('rsHint').innerHTML =
+    '<b id="rsModeName">' + mi[0] + '</b>' + mi[1];
+  document.getElementById('rsConc').innerHTML = rsConclusion();
+  document.getElementById('rsMeta').innerHTML =
+    rsKV('传感器', 'MSI') +
+    rsKV('波段', 'B2–B11') +
+    rsKV('分辨率', RS_CELL.toFixed(0)+' m') +
+    rsKV('幅宽', '6.0 km') +
+    rsKV('经度', RS_LON.toFixed(2)+'°E') +
+    rsKV('纬度', RS_LAT.toFixed(2)+'°N') +
+    rsKV('投影', 'UTM 48N') +
+    rsKV('成像', rsIsPreview ? '震前/预览' : '震前/震后');
+  document.getElementById('rsQuake').innerHTML =
+    rsKV('地震烈度', ROMAN[rsMag-1] + ' 度') +
+    rsKV('震级估算', 'M ' + (rsMag-2).toFixed(1)) +
+    rsKV('峰值加速度', pg.toFixed(2) + ' g') +
+    rsKV('镇区损毁率', (rsTownDamage(rsMag)*100).toFixed(1)+'%') +
+    `<div class="rs-kv full"><span>发震断层</span><b>映秀—北川断裂（示意）</b></div>`;
+  document.getElementById('rsStats').innerHTML =
+    rsKV('变化像元数', rsStat.change.toLocaleString()+' px') +
+    rsKV('变化面积', rsStat.changeA.toFixed(3)+' km²') +
+    rsKV('变化比例', rsStat.changePct.toFixed(1)+'%') +
+    rsKV('滑坡解译面积', rsStat.slideA.toFixed(3)+' km²', rsStat.slideA>0) +
+    rsKV('建筑损毁面积', rsStat.rubA.toFixed(3)+' km²', rsStat.rubA>0) +
+    rsKV('NDVI 均值', rsStat.ndviPre.toFixed(2)+' → '+rsStat.ndviPost.toFixed(2)) +
+    rsKV('ΔNDVI', (rsStat.ndviPost-rsStat.ndviPre).toFixed(3), true);
+  const legends = {
+    tc: [['#2e6437','林地/植被'],['#9c5c4c','建设用地'],['#6d6a63','道路'],['#2d6a8a','水体'],['#b0a250','耕地'],['#b3a78f','裸地岩']],
+    fc: [['#d0303a','植被（近红外强）'],['#8a8178','建设用地'],['#1b2a38','水体'],['#c8b060','裸土/滑坡'],['#e8e2d0','高反射屋顶']],
+    ndvi: [['#1e4420','NDVI > 0.5 密植被'],['#588c3a','0.3 ~ 0.5'],['#96b44e','0.15 ~ 0.3'],['#a89e68','0 ~ 0.15'],['#6e7060','< 0 水体/阴影']],
+    cls: [['#2d6a8a','水体'],['#2e6437','林地'],['#6d964a','草地'],['#b0a250','耕地'],['#9c5c4c','建设用地'],['#b3a78f','裸地岩'],['#d94f3a','损毁建筑'],['#d8b878','滑坡裸面']],
+    chg: [['#d64834','植被→裸地（滑坡）'],['#e8a13c','建筑→废墟'],['#4a92c8','水体浊度升高'],['#46965a','植被恢复'],['#28343e','无明显变化']]
+  };
+  document.getElementById('rsLegend').innerHTML = rsHeatOn
+    ? [['#dcd34f','轻微损坏'],['#e8963c','部分损毁'],['#de483e','完全损毁'],['#8b949c','未变化']]
+        .map(x=>`<span><i style="background:${x[0]}"></i>${x[1]}</span>`).join('')
+    : (legends[rsMode]||[]).map(x=>`<span><i style="background:${x[0]}"></i>${x[1]}</span>`).join('');
+}
+
+/* ---------- 光谱曲线 ---------- */
+function rsDrawSpectrum(k){
+  const cv = document.getElementById('rsSpec');
+  const ctx = cv.getContext('2d');
+  const W = cv.width, H = cv.height;
+  ctx.clearRect(0,0,W,H);
+  const names = ['B2','B3','B4','B8','B11'];
+  const sub = ['蓝','绿','红','近红','短红'];
+  const L = 34, R = W-12, T = 12, B = H-34;
+  ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1;
+  for(let i=0;i<=4;i++){
+    const y = T + (B-T)*i/4;
+    ctx.beginPath(); ctx.moveTo(L,y); ctx.lineTo(R,y); ctx.stroke();
+  }
+  const maxY = 0.50;
+  const px = (b)=> L + (R-L)*b/4;
+  const py = (v)=> B - (B-T)*Math.min(1, v/maxY);
+  ctx.font = '13px sans-serif'; ctx.fillStyle = '#93a1ad'; ctx.textAlign = 'center';
+  names.forEach((nm,i)=>{
+    ctx.fillStyle = '#c5cfd9'; ctx.fillText(nm, px(i), H-20);
+    ctx.fillStyle = '#93a1ad'; ctx.fillText(sub[i], px(i), H-6);
+  });
+  ctx.textAlign = 'left';
+  // 图例：震前（青）/ 震后（橙）
+  const leg = [['震前', '#5cc8e8'], ['震后', '#e8a13c']];
+  let lx = W - 118;
+  ctx.font = '13px sans-serif';
+  leg.forEach(([t, c])=>{
+    ctx.strokeStyle = c; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.moveTo(lx, T+1); ctx.lineTo(lx+16, T+1); ctx.stroke();
+    ctx.fillStyle = c; ctx.fillText(t, lx+20, T+6);
+    lx += 58;
+  });
+  if(k !== null && k !== undefined && rsPreB){
+    const draw = (bands, color) => {
+      ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.beginPath();
+      for(let b=0;b<5;b++){
+        const v = bands[k*5+b];
+        const x = px(b), y = py(v);
+        if(b===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      }
+      ctx.stroke();
+      ctx.fillStyle = color;
+      for(let b=0;b<5;b++){ ctx.beginPath(); ctx.arc(px(b), py(bands[k*5+b]), 3.5, 0, Math.PI*2); ctx.fill(); }
+    };
+    draw(rsPreB, '#5cc8e8');
+    if(rsPostB) draw(rsPostB, '#e8a13c');
+  }
+}
+
+/* ---------- 悬停探针：鼠标移到哪，就讲这一处是什么 ---------- */
+const RS_CLS_TXT = ['水体','林地','草地','耕地','建设用地','裸地/岩','损毁建筑','滑坡裸面'];
+
+function rsLocName(u, v){
+  const fx = u < 0.36 ? '西' : (u > 0.64 ? '东' : '中');
+  const fy = v < 0.36 ? '北' : (v > 0.64 ? '南' : '中');
+  const area = (fx === '中' && fy === '中') ? '研究区中部' : ('研究区' + fx + fy + '部');
+  let base;
+  if(rsTownField(u, v) < 1.0) base = '镇区';
+  else if(v < 0.42) base = '山地';
+  else if(Math.abs(v - rsRiverV(u)) < 0.05) base = '河谷';
+  else base = '缓坡地';
+  return area + ' · ' + base;
+}
+
+function rsChangeTag(k){
+  const a = rsCls[k], b = rsClsPost ? rsClsPost[k] : a;
+  const lv = rsDmgLv ? rsDmgLv[k] : 0;
+  const d0 = rsPreNDVI[k], d1 = rsPostNDVI ? rsPostNDVI[k] : d0;
+  if(b === 7) return ['植被 → 裸地（滑坡）', '#d64834', '重度变化'];
+  if(b === 6 && lv >= 2) return ['建筑 → 裸地（倒塌）', '#de483e', '重度变化'];
+  if(b === 6) return ['建筑 → 损毁建筑', '#e8963c', '中度变化'];
+  if(a === 0 && d1 < d0 - 0.04) return ['清水 → 浊水', '#4a92c8', '中度变化'];
+  if(lv === 1) return ['轻微扰动', '#dcd34f', '轻度变化'];
+  return ['无明显变化', '#7c8894', '未变化'];
+}
+
+function rsHoverCard(p, ev){
+  const el = document.getElementById('rsProbe');
+  if(!el) return;
+  if(!rsMag || !rsCls || !ev){ el.classList.remove('on'); return; }
+  const k = p.j*RS_N + p.i;
+  const u = (p.i+0.5)/RS_N, v = (p.j+0.5)/RS_N;
+  const a = rsCls[k], b = rsClsPost ? rsClsPost[k] : a;
+  const tag = rsChangeTag(k);
+  const d0 = rsPreNDVI[k], d1 = rsPostNDVI ? rsPostNDVI[k] : d0;
+  el.innerHTML =
+    '<div class="p-h">' + rsLocName(u, v) + '</div>' +
+    '<div class="p-r"><span>震前</span><b>' + RS_CLS_TXT[a] + '</b></div>' +
+    '<div class="p-r"><span>震后</span><b>' + RS_CLS_TXT[b] + '</b></div>' +
+    '<div class="p-r"><span>NDVI</span><b>' + d0.toFixed(2) + ' → ' + d1.toFixed(2) + '</b></div>' +
+    '<span class="p-tag" style="color:' + tag[1] + ';background:' + tag[1] + '22;border:1px solid ' + tag[1] + '66">' +
+      tag[0] + ' · ' + tag[2] + '</span>';
+  el.classList.add('on');
+  const w = 236, h = 128;
+  let x = ev.clientX + 18, y = ev.clientY + 16;
+  if(x + w > window.innerWidth - 12) x = ev.clientX - w - 18;
+  if(y + h > window.innerHeight - 12) y = ev.clientY - h - 16;
+  el.style.left = Math.max(8, x) + 'px';
+  el.style.top = Math.max(8, y) + 'px';
+}
+
+/* ---------- 框选统计：点一下影像，统计这一片损毁率 ---------- */
+let rsRect = null;
+
+function rsRegionStat(){
+  if(!rsRect) return null;
+  const i0 = rsRect.i0, i1 = rsRect.i1, j0 = rsRect.j0, j1 = rsRect.j1;
+  const n = (i1-i0+1)*(j1-j0+1);
+  const apx = (RS_CELL*RS_CELL)/1e6;
+  let bPre=0, bPost=0, rub=0, slide=0, dmg=0, nd0=0, nd1=0;
+  for(let j=j0;j<=j1;j++) for(let i=i0;i<=i1;i++){
+    const k = j*RS_N+i;
+    if(rsCls[k] === 4) bPre++;
+    const b = rsClsPost ? rsClsPost[k] : rsCls[k];
+    if(b === 4) bPost++;
+    if(b === 6) rub++;
+    if(b === 7) slide++;
+    if(rsDmgLv && rsDmgLv[k] >= 2) dmg++;
+    nd0 += rsPreNDVI[k];
+    nd1 += (rsPostNDVI ? rsPostNDVI[k] : rsPreNDVI[k]);
+  }
+  return {
+    n, area: n*apx,
+    bPre: bPre/n*100, bPost: bPost/n*100,
+    rubRate: bPre > 0 ? rub/bPre*100 : 0,
+    slideA: slide*apx, dmgPct: dmg/n*100,
+    nd0: nd0/n, nd1: nd1/n
+  };
+}
+
+function rsRenderRegionCard(){
+  const el = document.getElementById('rsRegion');
+  if(!el || !rsRect){ if(el) el.classList.remove('on'); return; }
+  const st = rsRegionStat();
+  if(!st) return;
+  const cols = rsRect.i1 - rsRect.i0 + 1;
+  el.innerHTML =
+    '<div class="rg-h"><span>▣ 框选统计</span><span class="rg-x" title="关闭">×</span></div>' +
+    '<div class="rg-r"><span>范围</span><b>' + st.area.toFixed(2) + ' km² · ' + cols + '×' + cols + ' 像元</b></div>' +
+    '<div class="rg-r"><span>震前建筑占比</span><b>' + st.bPre.toFixed(1) + '%</b></div>' +
+    '<div class="rg-r"><span>震后建筑占比</span><b>' + st.bPost.toFixed(1) + '%</b></div>' +
+    '<div class="rg-r"><span>建筑损毁率</span><b class="hot">' + st.rubRate.toFixed(1) + '%</b></div>' +
+    '<div class="rg-r"><span>受损像元</span><b>' + st.dmgPct.toFixed(1) + '%' + (st.slideA > 0.002 ? '　滑坡 ' + st.slideA.toFixed(2) + ' km²' : '') + '</b></div>' +
+    '<div class="rg-r"><span>NDVI 均值</span><b>' + st.nd0.toFixed(2) + ' → ' + st.nd1.toFixed(2) + '</b></div>';
+  el.classList.add('on');
+  // 定位：优先贴选区右侧，右边放不下就贴左侧；始终留在画布内，不盖右侧栏
+  const r = rsCanvasEl.getBoundingClientRect();
+  const bx0 = r.left + rsRect.i0/RS_N*r.width;
+  const bx1 = r.left + (rsRect.i1+1)/RS_N*r.width;
+  const by0 = r.top  + rsRect.j0/RS_N*r.height;
+  const CW = 252, CH = 200;
+  let left = bx1 + 12;
+  if(left + CW > r.right - 4) left = bx0 - CW - 12;
+  if(left < r.left + 4) left = bx1 + 12;
+  let top = by0;
+  if(top + CH > r.bottom - 6) top = r.bottom - CH - 6;
+  if(top < r.top + 6) top = r.top + 6;
+  el.style.left = Math.round(left) + 'px';
+  el.style.top = Math.round(top) + 'px';
+}
+
+function rsPickRegion(ev){
+  const p = rsPixelAt(ev);
+  if(!p || !rsMag) return;
+  const R = 20;                              // 半径 20 像元 ≈ 0.6 km
+  rsRect = {
+    i0: Math.max(0, p.i-R), i1: Math.min(RS_N-1, p.i+R),
+    j0: Math.max(0, p.j-R), j1: Math.min(RS_N-1, p.j+R)
+  };
+  const pb = document.getElementById('rsProbe');
+  if(pb) pb.classList.remove('on');
+  rsRenderRegionCard();
+  rsRender();
+}
+
+/* ---------- 交互 ---------- */
+function rsPixelAt(ev){
+  const r = rsCanvasEl.getBoundingClientRect();
+  const i = Math.floor((ev.clientX - r.left)/r.width*RS_N);
+  const j = Math.floor((ev.clientY - r.top)/r.height*RS_N);
+  if(i<0||j<0||i>=RS_N||j>=RS_N) return null;
+  return { i, j };
+}
+function rsShowPixel(p, ev){
+  if(!p) return;
+  rsHover = p;
+  rsDrawSpectrum(p.j*RS_N+p.i);
+  const b = rsPreB, k = p.j*RS_N+p.i;
+  const lon = RS_LON + (p.i/RS_N - 0.5)*RS_EXT/(111320*Math.cos(RS_LAT*Math.PI/180));
+  const lat = RS_LAT - (p.j/RS_N - 0.5)*RS_EXT/110540;
+  const nd = rsPreNDVI[k];
+  const cls = RS_CLS_NAME[rsCls[k]];
+  document.getElementById('rsSpecTxt').innerHTML =
+    `像元 (${p.i}, ${p.j})　${lon.toFixed(5)}°E, ${lat.toFixed(5)}°N<br>` +
+    `地物：${cls}　NDVI ${nd.toFixed(3)}　` +
+    `反射率 B4 ${(b[k*5+2]*100).toFixed(1)}% / B8 ${(b[k*5+3]*100).toFixed(1)}%`;
+  rsHoverCard(p, ev);
+  rsRender();
+}
+
+function rsOpen(){
+  if(!rsPreB) rsBuildPre();
+  if(!rsPostB){
+    const q = rsPending || { mag:selectedMag, focus:(currentScene === 'hill' ? 'hill' : 'house') };
+    rsBuildPost(q.mag, q.focus);
+    if(!rsPending) rsIsPreview = true;
+  }
+  document.getElementById('rsOverlay').classList.add('on');
+  rsRect = null;
+  const rgEl = document.getElementById('rsRegion');
+  if(rgEl) rgEl.classList.remove('on');
+  rsCanvasEl = document.getElementById('rsCanvas');
+  rsStageEl = document.getElementById('rsStage');
+  rsUpdateUI();
+  if(rsMag){
+    document.getElementById('rsMagRange').value = rsMag;
+    document.getElementById('rsMagVal').textContent = ROMAN[rsMag-1];
+  }
+  rsShowPixel({ i: Math.round(0.58*RS_N), j: Math.round(0.80*RS_N) });
+  rsRender();
+  rsGuideToast();
+}
+let rsGuideTimer = null;
+function rsGuideToast(){
+  let el = document.getElementById('rsGuideToast');
+  if(!el){
+    el = document.createElement('div');
+    el.id = 'rsGuideToast';
+    el.className = 'rs-toast';
+    el.innerHTML = '拖动中间竖线对比「震前 / 震后」；切上方专题换看法；拖右上「烈度」，看损毁范围怎么变大。';
+    document.body.appendChild(el);
+  }
+  el.classList.add('on');
+  clearTimeout(rsGuideTimer);
+  rsGuideTimer = setTimeout(()=>el.classList.remove('on'), 4200);
+}
+
+function rsClose(){
+  document.getElementById('rsOverlay').classList.remove('on');
+  rsSweep = false;
+  document.getElementById('rsSweepBtn').classList.remove('on');
+}
+// 三维场景触发地震时同步更新震后影像（首次打开面板前只记录参数，避免卡顿）
+let rsPending = null;
+function rsOnQuake(mag, focus){
+  rsIsPreview = false;
+  rsMag = mag;
+  rsPending = { mag, focus };
+  if(!rsPreB) return;
+  rsBuildPost(mag, focus);
+  rsUpdateUI();
+  if(document.getElementById('rsOverlay').classList.contains('on')){
+    rsRender();
+    if(rsHover) rsShowPixel(rsHover);
+  }
+}
+
+function rsBind(){
+  rsCanvasEl = document.getElementById('rsCanvas');
+  rsStageEl = document.getElementById('rsStage');
+  document.getElementById('sceneRS').addEventListener('click', rsOpen);
+  document.getElementById('rsClose').addEventListener('click', rsClose);
+  const magR = document.getElementById('rsMagRange');
+  magR.value = selectedMag;
+  document.getElementById('rsMagVal').textContent = ROMAN[selectedMag-1];
+  magR.addEventListener('input', (e)=>{
+    const m = parseInt(e.target.value, 10);
+    selectedMag = m;
+    document.getElementById('rsMagVal').textContent = ROMAN[m-1];
+    rsOnQuake(m, currentScene === 'hill' ? 'hill' : 'house');
+  });
+
+  document.getElementById('rsTabs').addEventListener('click', (e)=>{
+    const btn = e.target.closest('.rs-tab'); if(!btn) return;
+    rsMode = btn.dataset.mode;
+    document.querySelectorAll('.rs-tab').forEach(b=>b.classList.toggle('active', b===btn));
+    rsUpdateUI(); rsRender();
+  });
+
+  let dragging = false;
+  const setSplit = (ev)=>{
+    const r = rsCanvasEl.getBoundingClientRect();
+    rsSplit = Math.max(0, Math.min(1, (ev.clientX - r.left)/r.width));
+    rsRender();
+  };
+  rsCanvasEl.addEventListener('pointerdown', (e)=>{
+    const r = rsCanvasEl.getBoundingClientRect();
+    const sx = rsSplit * r.width;
+    // 靠近竖线 -> 拖动对比；点在别处 -> 框选统计
+    if(Math.abs((e.clientX - r.left) - sx) < 26){
+      dragging = true;
+      rsCanvasEl.setPointerCapture(e.pointerId);
+      setSplit(e);
+    } else {
+      rsPickRegion(e);
+    }
+  });
+  rsCanvasEl.addEventListener('pointermove', (e)=>{
+    if(dragging) setSplit(e);
+    const p = rsPixelAt(e);
+    if(p) rsShowPixel(p, e);
+  });
+  rsCanvasEl.addEventListener('pointerup', (e)=>{ dragging = false; try{ rsCanvasEl.releasePointerCapture(e.pointerId); }catch(err){} });
+  rsCanvasEl.addEventListener('pointerleave', ()=>{
+    dragging = false;
+    const el = document.getElementById('rsProbe');
+    if(el) el.classList.remove('on');
+  });
+  document.getElementById('rsRegion').addEventListener('click', (e)=>{
+    if(e.target.classList.contains('rg-x')){
+      rsRect = null;
+      document.getElementById('rsRegion').classList.remove('on');
+      rsRender();
+    }
+  });
+
+  document.getElementById('rsGridChk').addEventListener('change', (e)=>{ rsGrid = e.target.checked; rsRender(); });
+  document.getElementById('rsSweepBtn').addEventListener('click', (e)=>{
+    rsSweep = !rsSweep;
+    e.target.classList.toggle('on', rsSweep);
+    if(rsSweep) rsSweepDir = 1, rsSweepLoop();
+  });
+  document.getElementById('rsHeatBtn').addEventListener('click', (e)=>{
+    rsHeatOn = !rsHeatOn;
+    e.target.classList.toggle('on', rsHeatOn);
+    if(rsHeatOn) rsBuildHeatCv();
+    rsUpdateUI(); rsRender();
+  });
+  document.getElementById('rsSaveBtn').addEventListener('click', rsSaveImage);
+  const moreBtn = document.getElementById('rsMoreBtn');
+  moreBtn.addEventListener('click', ()=>{
+    const box = document.getElementById('rsMore');
+    const on = box.classList.toggle('on');
+    moreBtn.textContent = on ? '▴ 收起影像参数与光谱曲线' : '▾ 展开影像参数与光谱曲线';
+    if(on) setTimeout(()=>{ box.scrollIntoView({ block:'nearest', behavior:'smooth' }); }, 40);
+  });
+  window.addEventListener('keydown', (e)=>{ if(e.key === 'Escape') rsClose(); });
+}
+function rsSweepLoop(){
+  if(!rsSweep) return;
+  rsSplit += rsSweepDir*0.007;
+  if(rsSplit > 0.94){ rsSplit = 0.94; rsSweepDir = -1; }
+  if(rsSplit < 0.06){ rsSplit = 0.06; rsSweepDir = 1; }
+  rsRender();
+  requestAnimationFrame(rsSweepLoop);
+}
+
+function rsSaveImage(){
+  const pre = rsCanvasFor(rsMode, 'pre'), post = rsCanvasFor(rsMode, 'post') || pre;
+  const W = 1800, H = 1080;
+  const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const cx = cv.getContext('2d');
+  cx.fillStyle = '#0a1016'; cx.fillRect(0,0,W,H);
+  cx.fillStyle = '#e8a13c'; cx.font = '700 26px "PingFang SC","Microsoft YaHei",sans-serif';
+  cx.textAlign = 'left'; cx.textBaseline = 'top';
+  cx.fillText('地震震害遥感影像对比　' + (rsIsPreview?'（预览）':'') + ' 烈度 ' + ROMAN[rsMag-1] + ' 度', 40, 30);
+  cx.fillStyle = '#93a1ad'; cx.font = '400 17px "PingFang SC","Microsoft YaHei",sans-serif';
+  cx.fillText('研究区 6.0×6.0 km　20 m 分辨率　5 波段　' + ({tc:'真彩色合成',fc:'标准假彩色',ndvi:'NDVI',cls:'地物分类',chg:'变化检测'})[rsMode], 40, 68);
+  const size = 880, y = 116;
+  cx.drawImage(pre, 40, y, size, size);
+  cx.drawImage(post, W-40-size, y, size, size);
+  cx.fillStyle = 'rgba(10,16,22,0.75)'; cx.fillRect(40, y, 150, 44); cx.fillRect(W-40-size, y, 150, 44);
+  cx.fillStyle = '#f2ede4'; cx.font = '700 24px "PingFang SC","Microsoft YaHei",sans-serif';
+  cx.fillText('震 前', 62, y+10); cx.fillText('震 后', W-40-size+22, y+10);
+  cx.fillStyle = '#93a1ad'; cx.font = '400 16px sans-serif';
+  cx.fillText('变化像元 ' + rsStat.change.toLocaleString() + ' px　｜　变化面积 ' + rsStat.changeA.toFixed(3) +
+    ' km²　｜　滑坡 ' + rsStat.slideA.toFixed(3) + ' km²　｜　建筑损毁 ' + rsStat.rubA.toFixed(3) + ' km²', 40, H-56);
+  const a = document.createElement('a');
+  a.download = '遥感影像对比_' + ROMAN[rsMag-1] + '度.png';
+  a.href = cv.toDataURL('image/png');
+  a.click();
+}
+
+// 构建人体布娃娃（骨骼层级 + 关节角度约束）
+buildBodyTrio();
+bodyGroup.add(bodyBuilding);
+
+// 初始只显示房屋场景，避免其他场景模型从画面边缘串入
+hillGroup.visible = false;
+bodyGroup.visible = false;
+buildMatRing();
+switchScene('house');
+
+rsBind();
+// 首帧渲染后再预生成遥感影像，避免打开面板时卡顿
+setTimeout(()=>{
+  if(!rsPreB){
+    rsBuildPre();
+    const q = rsPending || { mag:selectedMag, focus:'house' };
+    rsBuildPost(q.mag, q.focus);
+    rsIsPreview = !rsPending;
+  }
+}, 700);
+
+animate();
+
+// 演示 / 调试入口：?rs=1 直接打开遥感影像面板，可叠加 &mag=11 指定烈度
+const _rsq = new URLSearchParams(location.search);
+if(_rsq.get('rs')){
+  setTimeout(()=>{
+    const m = parseInt(_rsq.get('mag')||'0', 10);
+    if(m >= 6 && m <= 12){ selectedMag = m; rsOnQuake(m, 'house'); }
+    const md = _rsq.get('mode');
+    if(md){ rsMode = md; document.querySelectorAll('.rs-tab').forEach(b=>b.classList.toggle('active', b.dataset.mode === md)); }
+    rsOpen();
+  }, 1500);
+}
+
+window.addEventListener('resize', ()=>{
+  camera.aspect=window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>

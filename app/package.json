@@ -1,0 +1,49 @@
+{
+  "name": "seismic-hazard-simulator",
+  "productName": "地震震害空间对比模拟器",
+  "version": "1.0.0",
+  "description": "基于地震波特征的震害简易空间对比模型 — 三维交互模拟与遥感影像分析",
+  "main": "main.js",
+  "author": "山西师范大学 地理科学学院",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "cn.edu.sxnu.seismic.simulator",
+    "productName": "地震震害空间对比模拟器",
+    "copyright": "山西师范大学 地理科学学院",
+    "directories": {
+      "output": "../dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "www/**/*",
+      "build/icon.ico"
+    ],
+    "asar": true,
+    "afterPack": "build/afterPack.js",
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "executableName": "SeismicSimulator",
+      "artifactName": "地震震害空间对比模拟器-${version}.${ext}",
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": false
+    },
+    "portable": {
+      "artifactName": "地震震害空间对比模拟器-${version}.exe",
+      "requestExecutionLevel": "user"
+    }
+  }
+}

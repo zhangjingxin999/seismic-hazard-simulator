@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>三类建筑材质震害效应分级模型</title>
+<style>
+  :root {
+    --bg: #f7f5ef;
+    --card: #ffffff;
+    --ink: #26221b;
+    --muted: #7a7263;
+    --line: #e5e0d5;
+    --accent: #b4531f;
+    --rc: #3b6d92;
+    --brick: #c0623a;
+    --wood: #a8874a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 20px 64px; }
+
+  header.hero { text-align: center; margin-bottom: 8px; }
+  header.hero .tag {
+    display: inline-block; font-size: 12px; letter-spacing: 2px;
+    color: var(--accent); border: 1px solid var(--accent);
+    padding: 4px 14px; border-radius: 20px; margin-bottom: 18px;
+  }
+  header.hero h1 {
+    font-size: 30px; font-weight: 700; letter-spacing: 1px; margin-bottom: 10px;
+  }
+  header.hero p.sub { color: var(--muted); font-size: 15px; max-width: 640px; margin: 0 auto; }
+
+  .panel {
+    background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+    padding: 28px 30px; margin-top: 24px;
+  }
+  .panel h2 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+  .panel .lead { color: var(--muted); font-size: 14px; margin-bottom: 20px; }
+
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 20px; }
+  .legend .item {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; padding: 6px 12px; border-radius: 8px;
+    border: 1px solid var(--line); background: #faf8f3;
+  }
+  .legend .dot { width: 12px; height: 12px; border-radius: 3px; }
+
+  .intensity-control { margin-top: 8px; }
+  .intensity-label {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 12px;
+  }
+  .intensity-label .big {
+    font-size: 34px; font-weight: 700; color: var(--accent);
+  }
+  .intensity-label .unit { font-size: 14px; color: var(--muted); }
+  .intensity-label .mag { font-size: 13px; color: var(--muted); }
+  input[type=range] {
+    width: 100%; -webkit-appearance: none; appearance: none; height: 6px;
+    background: #e8e2d6; border-radius: 3px; outline: none; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; appearance: none; width: 22px; height: 22px;
+    border-radius: 50%; background: var(--accent); border: 3px solid #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,.25); cursor: pointer;
+  }
+  .scale-ticks { display: flex; justify-content: space-between; margin-top: 6px; font-size: 11px; color: var(--muted); }
+  .scale-ticks span { width: 24px; text-align: center; }
+
+  .buildings { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 24px; }
+  @media (max-width: 720px) { .buildings { grid-template-columns: 1fr; } }
+
+  .building-card {
+    border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+    background: #fff;
+  }
+  .building-card .bc-head {
+    padding: 14px 16px 10px; text-align: center; border-bottom: 1px solid var(--line);
+  }
+  .building-card .bc-name { font-size: 16px; font-weight: 700; }
+  .building-card .bc-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .building-card svg { display: block; width: 100%; height: auto; }
+  .bc-state { padding: 12px 16px 16px; text-align: center; }
+  .bc-level { font-size: 13px; font-weight: 700; }
+  .bc-desc { font-size: 12px; color: var(--muted); margin-top: 4px; min-height: 32px; }
+
+  .chart-box { margin-top: 8px; }
+  .chart-legend { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+  .chart-legend span { display: flex; align-items: center; gap: 5px; }
+  .chart-legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+  table.matrix { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.matrix th, table.matrix td {
+    border: 1px solid var(--line); padding: 9px 8px; text-align: center;
+  }
+  table.matrix thead th { background: #f5f1e8; font-weight: 600; }
+  table.matrix td.mat { font-weight: 600; text-align: left; white-space: nowrap; }
+  .lv1 { background: #eaf3de; color: #27500a; }
+  .lv2 { background: #fbf0d4; color: #854f0b; }
+  .lv3 { background: #fde7d9; color: #993c1d; }
+  .lv4 { background: #fbdcdc; color: #a32d2d; }
+  .lv5 { background: #e9caca; color: #791f1f; font-weight: 700; }
+
+  .footnote { font-size: 12px; color: var(--muted); margin-top: 16px; line-height: 1.7; }
+  .footnote b { color: var(--ink); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <span class="tag">数字建模赛道 · 参赛方案</span>
+    <h1>三类建筑材质的震害效应分级模型</h1>
+    <p class="sub">钢筋混凝土 · 砖砌体 · 木结构 —— 在不同地震烈度下的破坏过程与易损性对比</p>
+  </header>
+
+  <div class="panel">
+    <h2>交互演示 · 拖动滑块观察破坏过程</h2>
+    <p class="lead">采用中国地震烈度表（Ⅰ~Ⅻ 度），并同步标注对应震级参照。拖动滑块，观察三种材质建筑在同一烈度下的破坏程度与物理过程。</p>
+
+    <div class="legend">
+      <div class="item"><span class="dot" style="background:var(--rc)"></span>钢筋混凝土</div>
+      <div class="item"><span class="dot" style="background:var(--brick)"></span>砖砌体</div>
+      <div class="item"><span class="dot" style="background:var(--wood)"></span>木结构</div>
+    </div>
+
+    <div class="intensity-control">
+      <div class="intensity-label">
+        <div>
+          <span class="big" id="intVal">Ⅷ</span>
+          <span class="unit"> 度烈度</span>
+        </div>
+        <span class="mag" id="magRef">约相当于 6 级左右地震</span>
+      </div>
+      <input type="range" id="intensity" min="1" max="12" value="8">
+      <div class="scale-ticks">
+        <span>Ⅰ</span><span>Ⅱ</span><span>Ⅲ</span><span>Ⅳ</span><span>Ⅴ</span><span>Ⅵ</span>
+        <span>Ⅶ</span><span>Ⅷ</span><span>Ⅸ</span><span>Ⅹ</span><span>Ⅺ</span><span>Ⅻ</span>
+      </div>
+    </div>
+
+    <div class="buildings" id="buildings"></div>
+  </div>
+
+  <div class="panel">
+    <h2>易损性曲线 · 破坏概率随烈度变化</h2>
+    <p class="lead">三种材质"严重破坏及以上"的概率随烈度上升的变化趋势。曲线越靠右，抗震性能越强。</p>
+    <div class="chart-legend">
+      <span><i style="background:#3b6d92"></i>钢筋混凝土</span>
+      <span><i style="background:#c0623a"></i>砖砌体</span>
+      <span><i style="background:#a8874a"></i>木结构</span>
+    </div>
+    <div class="chart-box" style="position:relative;height:340px;">
+      <canvas id="fragChart" role="img" aria-label="三材质易损性曲线">三材质易损性曲线</canvas>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>破坏等级矩阵 · 一目了然的空间对比</h2>
+    <p class="lead">每一格为"该材质在某烈度下的破坏等级"，颜色越深破坏越严重。</p>
+    <table class="matrix" id="matrix"></table>
+    <div class="footnote">
+      <b>破坏等级划分</b>（参照《建(构)筑物地震破坏等级划分》GB/T 24335）：基本完好 / 轻微破坏 / 中等破坏 / 严重破坏 / 倒塌。<br>
+      <b>物理机理</b>：砖砌体抗剪能力弱、属脆性破坏（Ⅵ 度即现 X 形剪切裂缝）；钢筋混凝土延性好、经"开裂→出铰→节点破坏"的延性破坏过程；木结构自重轻、柔性好，但榫卯/钉节点连接是其薄弱环节。
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const ROMAN = ['Ⅰ','Ⅱ','Ⅲ','Ⅳ','Ⅴ','Ⅵ','Ⅶ','Ⅷ','Ⅸ','Ⅹ','Ⅺ','Ⅻ'];
+
+  const materials = [
+    {
+      key: 'rc', name: '钢筋混凝土', sub: '框架结构 · 延性破坏', color: '#3b6d92',
+      states: [
+        { lv: 1, name: '基本完好', desc: '无可见破坏' },
+        { lv: 2, name: '基本完好', desc: '粉刷层偶见细裂缝' },
+        { lv: 3, name: '基本完好', desc: '非承重墙出现微裂缝' },
+        { lv: 4, name: '轻微破坏', desc: '梁柱节点出现细微裂缝' },
+        { lv: 5, name: '轻微破坏', desc: '填充墙可见斜裂缝' },
+        { lv: 6, name: '中等破坏', desc: '柱端弯曲开裂，保护层剥落' },
+        { lv: 7, name: '中等破坏', desc: '梁柱塑性铰形成，局部混凝土压碎' },
+        { lv: 8, name: '严重破坏', desc: '节点区破坏，钢筋屈曲外露' },
+        { lv: 9, name: '严重破坏', desc: '框架整体倾斜，接近极限' },
+        { lv: 10, name: '倒塌', desc: '结构失稳，局部/整体倒塌' },
+        { lv: 11, name: '倒塌', desc: '整体倒塌，仅存残柱' },
+        { lv: 12, name: '倒塌', desc: '完全损毁' },
+      ],
+      fragility: [0,0,0,0.01,0.03,0.08,0.20,0.42,0.70,0.90,0.98,1.0]
+    },
+    {
+      key: 'brick', name: '砖砌体', sub: '砌体结构 · 脆性破坏', color: '#c0623a',
+      states: [
+        { lv: 1, name: '基本完好', desc: '无可见破坏' },
+        { lv: 2, name: '基本完好', desc: '灰缝偶见细纹' },
+        { lv: 3, name: '轻微破坏', desc: '墙面出现细微 X 形裂缝' },
+        { lv: 4, name: '轻微破坏', desc: 'X 形剪切裂缝扩展' },
+        { lv: 5, name: '中等破坏', desc: '墙体斜裂缝贯通，抹灰脱落' },
+        { lv: 6, name: '中等破坏', desc: '墙体明显开裂，局部砖块松动' },
+        { lv: 7, name: '严重破坏', desc: '大片墙体开裂剥落，门窗洞口变形' },
+        { lv: 8, name: '严重破坏', desc: '墙体部分倒塌，承重墙开裂' },
+        { lv: 9, name: '倒塌', desc: '大量墙体倒塌，仅存部分残墙' },
+        { lv: 10, name: '倒塌', desc: '整体坍塌成砖堆' },
+        { lv: 11, name: '倒塌', desc: '完全坍塌' },
+        { lv: 12, name: '倒塌', desc: '完全损毁' },
+      ],
+      fragility: [0,0,0.02,0.06,0.16,0.35,0.60,0.82,0.94,0.99,1.0,1.0]
+    },
+    {
+      key: 'wood', name: '木结构', sub: '柔性结构 · 节点薄弱', color: '#a8874a',
+      states: [
+        { lv: 1, name: '基本完好', desc: '无可见破坏' },
+        { lv: 2, name: '基本完好', desc: '构件轻微响动' },
+        { lv: 3, name: '基本完好', desc: '榫卯节点轻微松动' },
+        { lv: 4, name: '轻微破坏', desc: '节点松动，墙板出现缝隙' },
+        { lv: 5, name: '轻微破坏', desc: '整体晃动明显，屋面瓦片滑落' },
+        { lv: 6, name: '中等破坏', desc: '墙体倾斜，节点连接受损' },
+        { lv: 7, name: '中等破坏', desc: '木框架变形，墙体明显倾斜' },
+        { lv: 8, name: '严重破坏', desc: '整体倾斜严重，部分构件脱榫' },
+        { lv: 9, name: '严重破坏', desc: '结构接近失稳，大量脱榫' },
+        { lv: 10, name: '倒塌', desc: '整体坍塌' },
+        { lv: 11, name: '倒塌', desc: '完全坍塌' },
+        { lv: 12, name: '倒塌', desc: '完全损毁' },
+      ],
+      fragility: [0,0,0.01,0.03,0.09,0.22,0.42,0.64,0.82,0.94,0.99,1.0]
+    }
+  ];
+
+  function romanToNum(r){ return ROMAN.indexOf(r)+1; }
+
+  function buildingSVG(mat, intensity, color){
+    const num = intensity;
+    const W = 300, H = 220;
+    const sway = num >= 8 ? 5 : num >= 6 ? 3 : 0;
+    const crack = num >= 6;
+
+    let body = '';
+    if (mat.key === 'rc') {
+      const tilt = num >= 9 ? -8 : -sway;
+      body = `
+        <g transform="translate(${W/2},${H/2}) rotate(${tilt}) translate(${-W/2},${-H/2})">
+          <rect x="70" y="45" width="160" height="150" fill="#f5f1e8" stroke="${color}" stroke-width="2"/>
+          <line x1="70" y1="95" x2="230" y2="95" stroke="${color}" stroke-width="1"/>
+          <line x1="70" y1="145" x2="230" y2="145" stroke="${color}" stroke-width="1"/>
+          <line x1="120" y1="45" x2="120" y2="195" stroke="${color}" stroke-width="1"/>
+          <line x1="180" y1="45" x2="180" y2="195" stroke="${color}" stroke-width="1"/>
+          <rect x="120" y="95" width="60" height="50" fill="#e8f0f6" stroke="${color}" stroke-width="1"/>
+          <rect x="70" y="60" width="50" height="35" fill="#e8f0f6" stroke="${color}" stroke-width="1"/>
+          <rect x="180" y="60" width="50" height="35" fill="#e8f0f6" stroke="${color}" stroke-width="1"/>
+        </g>`;
+      if (crack) {
+        body += `<path d="M120,145 L140,160 L125,175 L145,195" fill="none" stroke="#a32d2d" stroke-width="2"/>`;
+        if (num >= 8) body += `<path d="M180,95 L165,110 L185,125" fill="none" stroke="#a32d2d" stroke-width="2"/>`;
+        if (num >= 10) body += `<rect x="70" y="45" width="160" height="150" fill="none" stroke="#791f1f" stroke-width="3" stroke-dasharray="6 4"/>`;
+      }
+    } else if (mat.key === 'brick') {
+      const tilt = num >= 9 ? -10 : -sway;
+      body = `
+        <g transform="translate(${W/2},${H/2}) rotate(${tilt}) translate(${-W/2},${-H/2})">
+          <rect x="80" y="55" width="140" height="145" fill="#f6e8dd" stroke="${color}" stroke-width="2"/>
+          <line x1="80" y1="90" x2="220" y2="90" stroke="${color}" stroke-width="1"/>
+          <line x1="80" y1="125" x2="220" y2="125" stroke="${color}" stroke-width="1"/>
+          <line x1="80" y1="160" x2="220" y2="160" stroke="${color}" stroke-width="1"/>
+          <line x1="115" y1="55" x2="115" y2="90" stroke="${color}" stroke-width="1"/>
+          <line x1="185" y1="55" x2="185" y2="90" stroke="${color}" stroke-width="1"/>
+          <line x1="80" y1="90" x2="80" y2="125" stroke="${color}" stroke-width="1" transform="translate(0,0)"/>
+          <line x1="115" y1="90" x2="115" y2="125" stroke="${color}" stroke-width="1" opacity="0"/>
+          <line x1="150" y1="90" x2="150" y2="125" stroke="${color}" stroke-width="1"/>
+          <line x1="185" y1="90" x2="185" y2="125" stroke="${color}" stroke-width="1"/>
+          <line x1="115" y1="125" x2="115" y2="160" stroke="${color}" stroke-width="1"/>
+          <line x1="185" y1="125" x2="185" y2="160" stroke="${color}" stroke-width="1"/>
+          <line x1="150" y1="125" x2="150" y2="160" stroke="${color}" stroke-width="1"/>
+          <line x1="115" y1="160" x2="115" y2="200" stroke="${color}" stroke-width="1"/>
+          <line x1="185" y1="160" x2="185" y2="200" stroke="${color}" stroke-width="1"/>
+          <rect x="110" y="70" width="35" height="40" fill="#e8f0f6" stroke="${color}" stroke-width="1"/>
+          <path d="M80,55 L115,90" stroke="${color}" stroke-width="1"/>
+          <path d="M220,55 L185,90" stroke="${color}" stroke-width="1"/>
+          <path d="M80,200 L115,160" stroke="${color}" stroke-width="1"/>
+          <path d="M220,200 L185,160" stroke="${color}" stroke-width="1"/>
+        </g>`;
+      if (crack) {
+        body += `<path d="M90,75 L140,105 L120,130 L160,160" fill="none" stroke="#a32d2d" stroke-width="2.5"/>`;
+        body += `<path d="M210,75 L170,105 L190,130 L150,160" fill="none" stroke="#a32d2d" stroke-width="2.5"/>`;
+        if (num >= 10) body += `<rect x="80" y="55" width="140" height="145" fill="none" stroke="#791f1f" stroke-width="3" stroke-dasharray="6 4"/>`;
+      }
+    } else {
+      const tilt = num >= 9 ? -7 : -sway;
+      body = `
+        <g transform="translate(${W/2},${H/2}) rotate(${tilt}) translate(${-W/2},${-H/2})">
+          <rect x="85" y="60" width="130" height="140" fill="#f3ead4" stroke="${color}" stroke-width="2"/>
+          <line x1="85" y1="110" x2="215" y2="110" stroke="${color}" stroke-width="1"/>
+          <line x1="85" y1="160" x2="215" y2="160" stroke="${color}" stroke-width="1"/>
+          <line x1="150" y1="60" x2="150" y2="200" stroke="${color}" stroke-width="1"/>
+          <rect x="95" y="75" width="45" height="35" fill="#e8f0f6" stroke="${color}" stroke-width="1"/>
+          <path d="M80,60 L105,110 L80,160 L105,200" fill="none" stroke="${color}" stroke-width="1"/>
+          <path d="M220,60 L195,110 L220,160 L195,200" fill="none" stroke="${color}" stroke-width="1"/>
+          <path d="M85,60 L100,45 L200,45 L215,60" fill="#c9a05a" stroke="${color}" stroke-width="1.5"/>
+          <path d="M100,45 L100,60 M150,45 L150,60 M200,45 L200,60" stroke="${color}" stroke-width="1"/>
+        </g>`;
+      if (crack) {
+        body += `<path d="M150,110 L135,130 L150,150" fill="none" stroke="#a32d2d" stroke-width="2"/>`;
+        if (num >= 8) body += `<path d="M120,60 L130,80 L118,100" fill="none" stroke="#a32d2d" stroke-width="2"/>`;
+        if (num >= 10) body += `<rect x="85" y="60" width="130" height="140" fill="none" stroke="#791f1f" stroke-width="3" stroke-dasharray="6 4"/>`;
+      }
+    }
+
+    return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+      <rect x="20" y="20" width="${W-40}" height="${H-40}" fill="#faf8f3" rx="8"/>
+      ${body}
+      <line x1="20" y1="${H-18}" x2="${W-20}" y2="${H-18}" stroke="#c9c2b4" stroke-width="2"/>
+    </svg>`;
+  }
+
+  function render(){
+    const num = parseInt(document.getElementById('intensity').value, 10);
+    const roman = ROMAN[num-1];
+    document.getElementById('intVal').textContent = roman;
+
+    const magRef = document.getElementById('magRef');
+    if (num <= 3) magRef.textContent = '震感轻微，约小于 4.5 级地震';
+    else if (num <= 5) magRef.textContent = '约相当于 4.5~5.5 级地震';
+    else if (num <= 7) magRef.textContent = '约相当于 5.5~6.5 级地震';
+    else if (num <= 9) magRef.textContent = '约相当于 6.5~7.5 级地震';
+    else magRef.textContent = '约相当于 7.5 级及以上地震';
+
+    const c = document.getElementById('buildings');
+    c.innerHTML = materials.map(m => {
+      const st = m.states[num-1];
+      return `<div class="building-card">
+        <div class="bc-head">
+          <div class="bc-name" style="color:${m.color}">${m.name}</div>
+          <div class="bc-sub">${m.sub}</div>
+        </div>
+        ${buildingSVG(m, num, m.color)}
+        <div class="bc-state">
+          <div class="bc-level">${st.name}</div>
+          <div class="bc-desc">${st.desc}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  document.getElementById('intensity').addEventListener('input', render);
+
+  function buildMatrix(){
+    const table = document.getElementById('matrix');
+    const intensities = [6,7,8,9,10];
+    const levelClass = { '基本完好':'lv1','轻微破坏':'lv2','中等破坏':'lv3','严重破坏':'lv4','倒塌':'lv5' };
+    let html = '<thead><tr><th>材质</th>';
+    intensities.forEach(i => { html += `<th>${ROMAN[i-1]} 度</th>`; });
+    html += '</tr></thead><tbody>';
+    materials.forEach(m => {
+      html += `<tr><td class="mat">${m.name}</td>`;
+      intensities.forEach(i => {
+        const st = m.states[i-1];
+        html += `<td class="${levelClass[st.name]}">${st.name}</td>`;
+      });
+      html += '</tr>';
+    });
+    html += '</tbody>';
+    table.innerHTML = html;
+  }
+
+  function drawChart(){
+    const canvas = document.getElementById('fragChart');
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    const W = rect.width, H = rect.height;
+    const padL = 46, padR = 20, padT = 20, padB = 40;
+    const plotW = W - padL - padR, plotH = H - padT - padB;
+
+    ctx.clearRect(0, 0, W, H);
+
+    const xs = i => padL + (i / 11) * plotW;
+    const ys = v => padT + plotH - (v / 1.0) * plotH;
+
+    ctx.font = '12px sans-serif';
+    ctx.fillStyle = '#7a7263';
+    ctx.strokeStyle = '#e5e0d5';
+    ctx.lineWidth = 1;
+    for (let g = 0; g <= 4; g++) {
+      const v = g / 4;
+      const y = ys(v);
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(W - padR, y); ctx.stroke();
+      ctx.fillText(Math.round(v*100) + '%', padL - 34, y + 4);
+    }
+    ctx.fillText('破坏概率', padL - 34, padT - 6);
+
+    const tickLabels = ['Ⅰ','Ⅱ','Ⅲ','Ⅳ','Ⅴ','Ⅵ','Ⅶ','Ⅷ','Ⅸ','Ⅹ','Ⅺ','Ⅻ'];
+    for (let i = 0; i < 12; i++) {
+      const x = xs(i);
+      ctx.fillText(tickLabels[i], x - 4, H - padB + 18);
+    }
+    ctx.fillText('烈度', W/2 - 10, H - 6);
+
+    const colors = { rc:'#3b6d92', brick:'#c0623a', wood:'#a8874a' };
+    materials.forEach(m => {
+      ctx.strokeStyle = colors[m.key];
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      for (let i = 0; i < 12; i++) {
+        const x = xs(i), y = ys(m.fragility[i]);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.fillStyle = colors[m.key];
+      for (let i = 1; i < 12; i++) {
+        ctx.beginPath();
+        ctx.arc(xs(i), ys(m.fragility[i]), 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    });
+  }
+
+  render();
+  buildMatrix();
+  drawChart();
+  window.addEventListener('resize', drawChart);
+</script>
+</body>
+</html>
