@@ -135,4 +135,4 @@ npm run dist
 
 本项目采用 [MIT License](./LICENSE)。
 
-**作者**：山西师范大学 地理科学学院
+**作者**：fire.one

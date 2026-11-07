@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "基于地震波特征的震害简易空间对比模型 — 三维交互模拟与遥感影像分析",
   "main": "main.js",
-  "author": "山西师范大学 地理科学学院",
+  "author": "fire.one",
   "license": "MIT",
   "scripts": {
     "start": "electron .",
@@ -17,7 +17,7 @@
   "build": {
     "appId": "cn.edu.sxnu.seismic.simulator",
     "productName": "地震震害空间对比模拟器",
-    "copyright": "山西师范大学 地理科学学院",
+    "copyright": "fire.one",
     "directories": {
       "output": "../dist",
       "buildResources": "build"
